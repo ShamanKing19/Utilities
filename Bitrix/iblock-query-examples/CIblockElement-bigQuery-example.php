@@ -1,4 +1,5 @@
 <?php
+// ! Работает не везде :(
 $request = CIBlockElement::getList([
             "filter" => [
                 'IBLOCK_ID' => 5, // выборка элементов из инфоблока с ИД равным «5»

@@ -1,19 +1,19 @@
 <?php
 class ExampleCachedComponent extends CBitrixComponent {
-    public $arResult = [];
-
+    public array $arResult = [];
+    private int $cacheTime;
 
     public function onPrepareComponentParams($arParams)
     {
+        $this->cacheTime = $arParams["CACHE_TIME"];
         return $arParams;
     }
 
     public function executeComponent()
     {
-        $cacheTime = $this->arParams["CACHE_TIME"];
         // 1. Всё, что нужно закешировать будет в фигурнх скобках
         // 2. Второй параметр позволяет кэшировать по группам пользователей
-        if ($this->startResultCache($cacheTime, $GLOBALS["USER"]->GetGroups()))
+        if ($this->startResultCache($this->cacheTime, $GLOBALS["USER"]->GetGroups()))
         {
             $this->getElementsList();
             $this->getSectionCodes();
