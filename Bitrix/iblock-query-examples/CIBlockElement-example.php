@@ -41,7 +41,7 @@ $request = CIBlockElement::GetList([], $arFilter);
 CIBlockElement::GetProperty($iblockId, $elementId, ["MY_CUSTOM_PROPERTY"])->Fetch();
 
 // Получение ссылки на файл из свойства элемента инфоблока
-$attachedFileProperty = CIBlockElement::GetProperty($iblockId, $elementId, ["ATTACHED_FILE"])->Fetch();
+$attachedFileProperty = CIBlockElement::GetProperty($iblockId, $elementId, [], ["CODE" => "SALE_TYPE"])->Fetch();
 $absFilePath = CFile::GetPath($attachedFileProperty["VALUE"])
 
 
