@@ -3,7 +3,7 @@ if (!defined('B_PROLOG_INCLUDED') || B_PROLOG_INCLUDED !== true) die();
 
 class ExampleCompSimple extends CBitrixComponent
 {
-    public array $arResult = [];
+    public $arResult = [];
 
     public function onPrepareComponentParams($arParams)
     {
