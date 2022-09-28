@@ -11,6 +11,30 @@ class ExampleCachedComponent extends CBitrixComponent {
 
     public function executeComponent()
     {
+        $cachePath = "/contacts";
+        $cacheTime = $this->arParams["CACHE_TIME"];
+        $cacheKey = "contactsCache";
+
+        // * Тэгированный кэш (нормик)
+        if ($cache->startDataCache($cacheTime, $cacheKey, $cachePath)) {
+
+            $veryHugeList = $this-getMillionRowsFromDb();
+
+            $this->arResult["RETAIL_SHOPS"] = $this->getSomeShit();
+
+            $cache->endDataCache([
+                "arResult" => $this->arResult,
+                "millionRows" => $veryHugeList
+            ]);
+        } else {
+            $cachedVars = $cache->getVars();
+            $millionRows = $cachedVars["millionRows"];
+            $this->arResult = $cachedVars["arResult"];
+        }
+
+
+        // * Второй вариант кэша (не оч)
+
         // 1. Всё, что нужно закешировать будет в фигурнх скобках
         // 2. Второй параметр позволяет кэшировать по группам пользователей
         if ($this->startResultCache($this->cacheTime, $GLOBALS["USER"]->GetGroups()))
