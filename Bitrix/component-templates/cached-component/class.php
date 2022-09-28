@@ -11,6 +11,8 @@ class ExampleCachedComponent extends CBitrixComponent {
 
     public function executeComponent()
     {
+        use Bitrix\Main\Data\Cache;
+        $cache = Cache::createInstance();
         $cachePath = "/contacts";
         $cacheTime = $this->arParams["CACHE_TIME"];
         $cacheKey = "contactsCache";
