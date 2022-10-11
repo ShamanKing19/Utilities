@@ -22,24 +22,6 @@ function prettyPrint($data) : void
 
 
 /**
- * @param $elementId
- * @param $elementIBlockId
- * @return array            Возвращает ссылки EDIT_LINK и DELETE_LINK
- */
-function getActionLinks($elementId, $elementIBlockId) : array
-{
-    $actions = CIBlock::GetPanelButtons($elementIBlockId, $elementId);
-
-    $links = [
-        "EDIT_LINK" => $actions["edit"]["edit_element"]["ACTION_URL"],
-        "DELETE_LINK" => $actions["edit"]["delete_element"]["ACTION_URL"],
-    ];
-
-    return $links;
-}
-
-
-/**
  * Актуальный домен сайта (с протоколом)
  *
  * @param bool $slashAtEnd
