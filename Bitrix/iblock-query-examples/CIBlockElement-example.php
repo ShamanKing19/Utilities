@@ -53,3 +53,16 @@ while($item = $request->GetNextElement())
     $itemFields = $item->GetFields();
     $itemProperties = $item->GetProperties();
 }
+
+
+/* Пример фильра по свойству */
+$shopsRequest = CIBlockElement::GetList([], [
+    "IBLOCK_CODE" => $this->shopsIBlockCode,
+    "PROPERTY_SALE_TYPE" => $saleType["ID"]
+],
+false,
+false,
+[
+    "*",
+]
+);

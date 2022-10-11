@@ -1,10 +1,11 @@
 <?php
 
-// * Включение AJAX режима в кастомных компонентаэ
-if($arParams["AJAX_MODE"] == "Y")
-{
-	$ajaxSession = CAjax::GetSession();
-}
+// * Включение AJAX режима в любых помпонентах
+[
+    "AJAX_MODE" => "Y",
+    "AJAX_OPTION_JUMP" => "N" // Вывключить прокрутку после перезагрузки компонента
+]
+
 
 
 // * Для корректного режима работы AJAX
@@ -18,3 +19,6 @@ if ($_REQUEST["AJAX_CALL"] == "Y") {
 if ($_REQUEST["AJAX_CALL"] == "Y") {
     die();
 }
+
+// 3). Иногда нужно вставить это в начало шаблона. Хз зачем
+$this->setFrameMode(false);
