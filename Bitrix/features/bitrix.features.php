@@ -83,7 +83,7 @@ CFile::SaveFile($photo, $uploadDir);
 
 
 
-// ! Редкость
+// ! Только на D7 с собственными таблицами (Пример в папке DBTable)
 
 // * Запрос с join'ами. Работает не везде
 $request = CIBlockElement::getList([

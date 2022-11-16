@@ -14,7 +14,7 @@
 //        "USE_SUGGEST" => "Y",
 //        "USE_LANGUAGE_GUESS" => "Y", // Ломает поиск по части слова (например ввести "фек")
         "DEFAULT_SORT" => "rank",
-        "arrFILTER" => ["iblock_content"],
-        "arrFILTER_iblock_content" => [App\Tools\IBlock::getIdByCode(UP_CATALOG_IBLOCK_CODE)],
+        "arrFILTER" => ["iblock_content"], // тип инфоблока после iblock_
+        "arrFILTER_iblock_content" => [IBLOCK_ID],
         "PAGE_RESULT_COUNT" => 10,
         ]);
