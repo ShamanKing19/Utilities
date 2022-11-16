@@ -50,7 +50,8 @@ function getIblockIdByCode(string $code)
  * @param string $propertyCode Символьный код свойства
  * @param bool $enum Свойство типа список
 */
-function getPropertyIdByCode(int $iBlockId, string $propertyCode, bool $enum = false) {
+function getPropertyIdByCode(int $iBlockId, string $propertyCode, bool $enum = false) 
+{
     $listValueList = [];
     \Bitrix\Main\Loader::includeModule('iblock');
 
@@ -88,4 +89,28 @@ function getPropertyIdByCode(int $iBlockId, string $propertyCode, bool $enum = f
     }
 
     return $property['ID'];
+}
+
+
+
+/**
+ * Создаёт элемент в инфоблоке (Не забыть об обязательном символьном коде!)
+ * 
+ * @param array $fields         Массив со значениями полей
+ * @param array $properties     Массив со значениями свойств (['PROPERTY_CODE' => 'VALUE']) 
+ * @return int                  Id созданного элемента
+ */
+function createIBlockElement(array $fields, array $properties) : int
+{
+    $elem = new CIBlockElement();
+
+
+    $fields = [
+        "ACTIVE" => $fields['ACTIVE'],
+        "IBLOCK_ID" => $fields['IBLOCK_ID'],
+        "NAME" => $fields['NAME'],
+        "PROPERTY_VALUES" => $properties
+    ];
+
+    return $elem->Add($fields);
 }
