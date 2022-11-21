@@ -114,3 +114,39 @@ function createIBlockElement(array $fields, array $properties) : int
 
     return $elem->Add($fields);
 }
+
+
+/**
+ * Запускает событие по отправке почтового шаблона с переданными полями
+ * (Настройки продукта -> Почтовые и СМС события)
+ * 
+ * @param string $eventName Название почтового события (Типы событий) 
+ * @param array $fields     Ассоциативный массив со значениями, которые можно использовать в почтовом шаблоне, привязанному к почтовому событию 
+ * return $result
+ */
+function sendEmail($eventName, $fields, $siteId = SITE_ID)
+{
+    return Bitrix\Main\Mail\Event::send([
+        "EVENT_NAME" => $eventName,
+        "LID" => $siteId,
+        "C_FIELDS" => $fields
+    ]);
+}
+
+
+/**
+ * Символьный код выбранного языка на сайте (в системе Битрикс)
+ *
+ * @param bool $toUpper
+ * @return string
+ */
+function getCurrentLanguage(bool $toUpper = false): string
+{
+    $lang = Bitrix\Main\Application::getInstance()->getContext()->getLanguage();
+
+    if($toUpper) {
+        $lang = strtoupper($lang);
+    }
+
+    return $lang;
+}
