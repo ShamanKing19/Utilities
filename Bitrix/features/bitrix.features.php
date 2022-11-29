@@ -123,3 +123,83 @@ $request = CIBlockElement::getList([
         )
     ]
 ]);
+
+
+// ! Работа с заказами
+
+function getOrders($isActiveOnly = false, $filter = [], $sort = []) : array
+{
+    global $USER;
+    $filter['USER_ID'] = $USER->GetID();
+
+    if ($isActiveOnly) {
+        $filter['!STATUS_ID'] = 'F';
+    }
+
+    $request = CSaleOrder::GetList($sort, $filter);
+    $orders = [];
+    while ($res = $request->GetNext()) {
+        $orders[] = $res;
+    }
+
+    return $orders;
+}
+
+
+function getShipmentTypes() : array
+{
+    return \Bitrix\Sale\Delivery\Services\Manager::getActiveList();
+}
+
+
+function getStatuses() : array
+{
+    $request = \Bitrix\Sale\Internals\StatusLangTable::getList([
+        'filter' => [
+            'LID' => getCurrentLanguage()
+        ]
+    ]);
+
+    $statuses = [];
+    while ($status = $request->Fetch()) {
+        $statuses[$status['STATUS_ID']] = $status;
+    }
+
+    return $statuses;
+}
+
+
+
+function getPaymentTypes() : array
+{
+    $request = \Bitrix\Sale\PaySystem\Manager::getList([
+        'filter'  => [
+            'ACTIVE' => 'Y',
+        ]
+    ]);
+
+    while ($res = $request->Fetch()) {
+        $payments[$res['ID']] = $res;
+    }
+
+    return $payments;
+
+}
+
+
+function getPayments($orderIds) : array
+{
+
+    $payments = [];
+    $request = \Bitrix\Sale\Payment::getList([
+        'filter' => [
+            'ORDER_ID' => $orderIds,
+        ],
+    ]);
+
+    while ($res = $request->Fetch()) {
+        $payments[$res['ID']] = $res;
+    }
+
+    return $payments;
+}
