@@ -3,32 +3,32 @@ namespace App\CustomProperties;
 
 use CModule;
 
-class PropertyExampleClassName extends \Bitrix\Sale\Internals\Input\Base
+class AddressOrderAttach extends \Bitrix\Sale\Internals\Input\Base
 {
     public static function getViewHtmlSingle(array $input, $value)
     {
         $itemList = self::getItemList();
-        
+
         if($itemId = (int)$value) {
             $currentItem = $itemList[$itemId];
-            
-            return '['.$currentItem['ID'].'] ' . $currentItem['NAME']; // ? Может быть что-то кроме 'NAME'
+
+            return '['.$currentItem['ID'].'] ' . $currentItem['NAME'];
         }
-        
+
         return '';
     }
-    
+
     public static function getEditHtmlSingle($name, array $input, $value)
     {
         $itemList = self::getItemList();
         $options = '<option value="">-</option>';
 
         foreach($itemList as $item) {
-            $options .= '<option value="'.$item['ID'].'">'.htmlspecialcharsbx($item['NAME']).'</option>'; // ? Может быть что-то кроме 'NAME'
-        }
-        
+            $selected = (int)current($value) === (int)$item['ID'] ? ' selected' : '';
+            $options .= '<option value="'.$item['ID'].'"'.$selected.'>'.htmlspecialcharsbx($item['NAME']).'</option>';        }
+
         $multiple = $input['MULTIPLE'] == 'Y' ? ' multiple' : '';
-        
+
         return '<select name="'.$name.'"'.$multiple.'>'.$options.'</select>';
     }
 
@@ -51,26 +51,22 @@ class PropertyExampleClassName extends \Bitrix\Sale\Internals\Input\Base
     {
         return [];
     }
-    
-    // ! Вот этот метод везде свой будет
+
     public static function getItemList(): array
     {
         CModule::IncludeModule('iblock');
-        
+
         $dbResult = \CIBlockElement::GetList(
             ['SORT' => 'ASC',],
-            ['IBLOCK_CODE' => UP_CONTRACTS_IBLOCK_CODE],
-            false,
-            false,
-            ['*', 'UF_*']
+            ['IBLOCK_CODE' => UP_DELIVERY_ADDRESSES_IBLOCK_CODE],
         );
-        
+
         $result = [];
-        
+
         while($item = $dbResult->fetch()) {
             $result[$item['ID']] = $item;
         }
-        
+
         return $result;
     }
 }
