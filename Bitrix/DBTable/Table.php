@@ -21,6 +21,10 @@ if ($connection->isTableExists(Table::getTableName())) {
 $entity->createDbTable();
 
 
+/* Удаление таблицы */
+$connection = \Bitrix\Main\Application::getConnection();
+$connection->dropTable('tableName');
+
 
 /* -------------------- Поля таблицы -------------------- */
 class Table extends Entity\DataManager
