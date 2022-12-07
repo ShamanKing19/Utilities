@@ -8,8 +8,9 @@ use Bitrix\Main\Entity\DatetimeField;
 use Bitrix\Main\Entity\IntegerField;
 
 
-// * Можно создать через командную строку, можно где-то в коде
-use App\Comparison\Table; // Нужно указать актуальный namespace
+/* -------------------- Создание таблицы -------------------- */
+
+use App\Namespace\Table;
 $entity = Table::getEntity();
 $connection = \Bitrix\Main\Application::getConnection();
 
@@ -21,6 +22,7 @@ $entity->createDbTable();
 
 
 
+/* -------------------- Поля таблицы -------------------- */
 class Table extends Entity\DataManager
 {
     public static function getTableName()
@@ -38,24 +40,28 @@ class Table extends Entity\DataManager
                     "autocomplete" => true,
                 ]
             ),
-            new IntegerField(
-                "USER_ID",
-                [
-                    "required" => true
-                ]
-            ),
-            new IntegerField(
-                "PRODUCT_ID",
-                [
-                    "required" => true
-                ]
-            ),
             new DatetimeField(
                 "TIMESTAMP_X",
                 [
                     "default_value" => new Main\Type\DateTime(),
                 ]
-            )
+            ),
+            new StringField(
+                "STRING_FIELD_NAME",
+                [
+                    "required" => false
+                    ]
+                ),
+            new FloatField(
+                'FLOAT_FIELD_NAME',
+                [
+                    "required" => false        
+                ]),
+            new EnumField(
+                'ENUM_FIELD_NAME', 
+                [
+                    'values' => ['reserved', 'transit', 'ns']
+                ]),
         ];
     }
 }
