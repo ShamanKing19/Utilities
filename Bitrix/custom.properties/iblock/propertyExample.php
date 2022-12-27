@@ -8,7 +8,7 @@ use Bitrix\Main\Localization\Loc,
 
 Loc::loadMessages(__FILE__);
 
-class PromotionRule {
+class SomeCustomProperty {
     public static function getTypeDescription()
     {
         /**
@@ -19,8 +19,8 @@ class PromotionRule {
 
         return [
             'PROPERTY_TYPE' => 'S', // Используем строку, потому что выводим html
-            'USER_TYPE' => 'TYPE_NAME',
-            'DESCRIPTION' => 'TYPE_DESCRIPTION', // При выборе типа свойства будет отображаться это значение
+            'USER_TYPE' => 'SOME_PROPERTY', // Символьный код свойства
+            'DESCRIPTION' => 'Меня ты увидишь в админке', // При выборе типа свойства будет отображаться это значение
             'GetPropertyFieldHtml' => [__CLASS__, 'GetPropertyFieldHtml'],
             'GetSettingsHTML' => [__CLASS__, 'GetSettingsHTML'],
         ];
@@ -32,30 +32,22 @@ class PromotionRule {
 
         if (Loader::includeModule('sale'))
         {
-            $cache["PROMOTIONS"] = [];
-            $promotionsResponse = \CSaleDiscount::GetList(["NAME" => "ASC"]); // Выборка необходимых элементов
+            $cache['ITEMS'] = self::getItemList(); // Выборка необходимых элементов
 
-            while ($promotionElement = $promotionsResponse->GetNext())
-            {
-                if ($promotionElement["NAME"])
-                {
-                    $cache["PROMOTIONS"][$promotionElement["ID"]] = $promotionElement;
-                }
-            }
 
             $varName = str_replace("VALUE", "DESCRIPTION", $strHTMLControlName["VALUE"]);
             $val = $value["VALUE"] ?: $arProperty["DEFAULT_VALUE"];
             $html = '<select name="' . $strHTMLControlName["VALUE"] . '" onchange="document.getElementById(\'DESCR_' . $varName . '\').value=this.options[this.selectedIndex].text">
 			<option value="" >-</option>';
-            foreach ($cache["PROMOTIONS"] as $promotion)
+            foreach ($cache['ITEMS'] as $item)
             {
-                $html .= '<option value="' . $promotion["ID"] . '"';
-                if ($val == $promotion["~ID"])
+                $html .= '<option value="' . $item["ID"] . '"';
+                if ($val == $item["~ID"])
                 {
                     $html .= ' selected';
                 }
 
-                $html .= '>' . $promotion["NAME"] . '</option>';
+                $html .= '>' . $item["NAME"] . '</option>'; // тут вместо ['NAME'] можно вывести что-нибудь другое
             }
 
             $html .= '</select>';
@@ -81,5 +73,21 @@ class PromotionRule {
         ];
 
         return $html;
+    }
+
+
+    private static function getItemList()
+    {
+        $items = [];
+        $promotionsResponse = \CSaleDiscount::GetList(["NAME" => "ASC"]);
+
+        // Тут надо использовать GetNext() либо мб можно GetNextElement() (нужно значение ~ID)
+        while ($item = $promotionsResponse->GetNext()) 
+        {
+            if ($item["NAME"])
+            {
+                $items[$item["ID"]] = $item;
+            }
+        }
     }
 }
