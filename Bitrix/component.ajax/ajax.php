@@ -2,9 +2,14 @@
 
 // * Включение AJAX режима в любых помпонентах
 [
-    "AJAX_MODE" => "Y",
-    "AJAX_OPTION_JUMP" => "N" // Вывключить прокрутку после перезагрузки компонента
+    'AJAX_MODE' => 'Y',
+    'AJAX_OPTION_JUMP' => 'N', // Вывключить прокрутку после перезагрузки компонента
+    'AJAX_OPTION_HISTORY' => 'N', // Выключает появление параметров при клике на ссылку
 ]
+
+// Проверка на ajax
+$request = \Bitrix\Main\Context::getCurrent()->getRequest();
+$isAjax = $request->isAjaxRequest();
 
 
 
