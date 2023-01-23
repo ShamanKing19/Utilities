@@ -10,20 +10,24 @@ use Bitrix\Main\Entity\IntegerField;
 
 /* -------------------- Создание таблицы -------------------- */
 
-use App\Namespace\Table;
-$entity = Table::getEntity();
+use App\Namespace\Table as CustomTable;
+$entity = CustomTable::getEntity();
 $connection = \Bitrix\Main\Application::getConnection();
 
-if ($connection->isTableExists(Table::getTableName())) {
+if ($connection->isTableExists(CustomTable::getTableName())) {
    return false;
 }
 
 $entity->createDbTable();
+/* ---------------------------------------------------------- */
+
 
 
 /* Удаление таблицы */
 $connection = \Bitrix\Main\Application::getConnection();
 $connection->dropTable('tableName');
+/* ---------------- */
+
 
 
 /* -------------------- Поля таблицы -------------------- */
@@ -53,7 +57,8 @@ class Table extends Entity\DataManager
             new StringField(
                 "STRING_FIELD_NAME",
                 [
-                    "required" => false
+                    "required" => false,
+                    "unique" => true // Оно есть, но работает или нет - вопрос
                     ]
                 ),
             new FloatField(
@@ -69,3 +74,4 @@ class Table extends Entity\DataManager
         ];
     }
 }
+/* ---------------------------------------------------- */
