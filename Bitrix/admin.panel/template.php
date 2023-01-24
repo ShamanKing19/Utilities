@@ -26,3 +26,27 @@ if ($USER->IsAuthorized() && $USER->IsAdmin()) {
         ]
     );
 }
+
+
+/* Добавление кнопок для редактирования куда угодно */
+$tooltipHtmlId = "Любой уникальный id";
+$APPLICATION->setEditArea($tooltipHtmlId, [
+    // Просто кнопка
+    [
+        'URL' => 'https://yandex.ru',
+        'ICON' => 'bx-context-toolbar-edit-icon', // CSS класс иконки
+        'TITLE' => 'Кнопка с иконкой',
+    ],
+    // Кнопка, открывающая что-нибудь в маленьком окне (попапе)
+    [
+        'URL' => 'javascript:'.$APPLICATION->getPopupLink([
+                'URL' => '/index.php',
+                'PARAMS' => [
+                    'width' => '640',
+                    'height' => '480',
+                ],
+            ]),
+        'SRC' => 'URL картинки',
+        'TITLE' => 'Кнопка с картинкой и всплывающий окном',
+    ],
+]);
