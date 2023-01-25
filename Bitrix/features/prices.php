@@ -27,5 +27,9 @@ function getPriceByCurrentPriceType($productId) {
         'CATALOG_GROUP_ID' => $price['CATALOG_GROUP_ID']
     ]]);
 
+    // Вот эти штуки тоже помогают подсчитать цену со скидками
+    $discounts = \CCatalogDiscount::GetDiscountByProduct($productId, $USER->GetUserGroupArray());
+    $discountPrice = \CCatalogProduct::CountPriceWithDiscount($price['PRICE'], $price['CURRENCY'], $discounts); // Сразу возвращает цену со скидками
+
     return $res['DISCOUNT_PRICE'];
 }
