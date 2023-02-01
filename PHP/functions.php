@@ -5,7 +5,7 @@
  * 
  * @param mixed $data
  */
-function prettyPrint($data) : void
+function pprint($data)
 {
     ?><pre
         style="
@@ -126,4 +126,61 @@ function getStrFileSize(int $size, int $round = 2): string
     }
 
     return round($size,$round)." ".$sizes[$i];
+}
+
+
+/**
+ * Запись массива в .csv файл
+ * 
+ * @param array $data Массив к записи
+ * @param string $path Путь для сохранения файла
+ * @param bool $header Нужно ли выводить шапку (берёт ключи из первого элемента)
+ * @param string $columnDelimiter Разделитель колонок
+ * @param string $rowDelimiter Разделитель строк
+ * @return false|string
+ */
+function writeCSV(array $data, string $path, bool $header = false, $columnDelimiter = ';', $rowDelimiter = "\r\n")
+{
+    $stringToCSV = '';
+
+    if ($header) {
+        $header = array_keys(current($data));
+        $stringToCSV .= implode($columnDelimiter, $header) . $rowDelimiter;
+    }
+
+    foreach ($data as $row) {
+        $cols = [];
+
+        foreach ($row as $columnValue)
+        {
+            if ($columnValue && preg_match('/[",;\r\n]/', $columnValue))
+            {
+                if ($rowDelimiter === "\r\n") {
+                    $columnValue = str_replace(["\r\n", "\r"], ['\n', ''], $columnValue);
+                } elseif ($rowDelimiter === "\n") {
+                    $columnValue = str_replace(["\n", "\r\r"], '\r', $columnValue);
+                }
+
+                $columnValue = str_replace('"', '""', $columnValue);
+                $columnValue = '"'. $columnValue .'"';
+            }
+
+            $cols[] = $columnValue;
+        }
+
+        $stringToCSV .= implode($columnDelimiter, $cols) . $rowDelimiter;
+    }
+
+    $stringToCSV = rtrim($stringToCSV, $rowDelimiter);
+
+    if ($path) {
+        $stringToCSV = iconv("UTF-8", "cp1251",  $stringToCSV);
+
+        $done = file_put_contents($path, $stringToCSV);
+
+        return $done ? $stringToCSV : false;
+    }
+
+    return $stringToCSV;
+
 }
