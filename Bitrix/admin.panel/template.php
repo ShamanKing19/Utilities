@@ -4,6 +4,8 @@
 global $USER;
 // Проверка нужна, потому что у неавторизованного пользователя тоже появится окно админки
 if ($USER->IsAuthorized() && $USER->IsAdmin()) {
+    
+    // Переход к элементу
     $APPLICATION->AddPanelButton(
         [
             'HREF' => '/bitrix/admin/' . CIBlock::GetAdminElementEditLink($iBlockId, $arResult['ID']),
@@ -15,11 +17,28 @@ if ($USER->IsAuthorized() && $USER->IsAdmin()) {
         ]
     );
 
+    // Переход к разделу
     $APPLICATION->AddPanelButton(
         [
             'HREF' => '/bitrix/admin/' . CIBlock::GetAdminSectionEditLink($iBlockId, $sectionId),
             'SRC' => "/bitrix/images/fileman/panel/web_form.gif",
             'TEXT' => "Перейти к разделу товара в админке",
+            'MAIN_SORT' => 400,
+            'TYPE' => 'SMALL',
+            'SORT' => 100
+        ]
+    );
+
+
+    $iblock = \CIBlock::GetList([], ['CODE' => $iBlockCode])->fetch();
+    $iBlockId = $iblock['ID'];
+    $iblockType = $iblock['IBLOCK_TYPE_ID'];
+
+    $APPLICATION->AddPanelButton(
+        [
+            'HREF' => "/bitrix/admin/iblock_element_admin.php?IBLOCK_ID=$iBlockId&type=$iblockType&lang=ru&find_el_y=Y",
+            'SRC' => '/bitrix/images/fileman/panel/web_form.gif',
+            'TEXT' => 'Перейти к инфоблоку',
             'MAIN_SORT' => 400,
             'TYPE' => 'SMALL',
             'SORT' => 100
