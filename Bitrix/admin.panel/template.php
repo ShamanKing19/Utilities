@@ -36,7 +36,7 @@ if ($USER->IsAuthorized() && $USER->IsAdmin()) {
 
     $APPLICATION->AddPanelButton(
         [
-            'HREF' => "/bitrix/admin/iblock_element_admin.php?IBLOCK_ID=$iBlockId&type=$iblockType&lang=ru&find_el_y=Y",
+            'HREF' => "/bitrix/admin/iblock_element_admin.php?IBLOCK_ID=$iblockId&type=$iblockType&lang=ru&find_section_section=$sectionId&SECTION_ID=$sectionId&apply_filter=Y",
             'SRC' => '/bitrix/images/fileman/panel/web_form.gif',
             'TEXT' => 'Перейти к инфоблоку',
             'MAIN_SORT' => 400,
