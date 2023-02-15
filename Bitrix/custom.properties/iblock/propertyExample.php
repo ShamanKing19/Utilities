@@ -22,7 +22,9 @@ class SomeCustomProperty {
             'USER_TYPE' => 'SOME_PROPERTY', // Символьный код свойства
             'DESCRIPTION' => 'Меня ты увидишь в админке', // При выборе типа свойства будет отображаться это значение
             'GetPropertyFieldHtml' => [__CLASS__, 'GetPropertyFieldHtml'],
-            'GetSettingsHTML' => [__CLASS__, 'GetSettingsHTML'],
+            'GetPropertyFieldHtmlMulty' => [__CLASS__, 'GetPropertyFieldHtmlMulty'],
+            'GetSettingsHTML' => [__CLASS__, 'GetSettingsHTML'], // Позволяет добавить кастомные настройки для свойства
+            'PrepareSettings' => [__CLASS__, 'PrepareSettings'], // Нужна чтобы сохранить настройки, добавленные в GetSettingsHtml
             'ConvertToDB' => [__CLASS__, 'ConvertToDB'], // ! Нужно только когда сохраняем массив с ключами и значениями
             'ConvertFromDB' => [__CLASS__, 'ConvertFromDB'], // ! Нужно только когда сохраняем массив с ключами и значениями 
         ];
@@ -31,18 +33,13 @@ class SomeCustomProperty {
 
     /**
      * @param array $arProperty Массив с информацией о свойстве
-     * @param string $value Значения из формы (если его сериализовать, то может прилететь строка). Пример: <input name="<?=htmlInputName?>[PROP_NAME]" value="$id"/> 
+     * @param string $value Массив ['VALUE' => 'string', 'DESCRIPTION' => 'string']. В $value['VALUE'] значения из формы, обработанные в ConvertFromDB/> 
      * @param $htmlInputName Массив с какой-то шляпой, но с нужным параметром ['VALUE'] для инпутов
      *
      * @return false|string
      */
     static function GetPropertyFieldHtml($arProperty, $value, $htmlInputName) {
         $value = $value['VALUE'];
-
-        if (!Loader::includeModule('sale')) {
-            return '';
-        }
-
         $items = self::getItemList(); // Выборка необходимых элементов
 
         // ! Если поле не множественное, то так прокатит
@@ -55,18 +52,59 @@ class SomeCustomProperty {
 
         ob_start()
         ?>
-
         <!--
-            Тут при сохранении странная схема:
-            1). Если свойство не множественное и в форме один input или select (тоже не множественные), то name="<?=$htmlInputName?>" прокатит,
-            1). Если свойство не множественное и в форме один select с атрибутом multiple, то нужно name="<?=$htmlInputName?>[]" 
-            2). Если свойство множественное, но с одним инпутом, то name="<?=$htmlInputName?>[][]" // ? Это точно хз, лучше перепроверить
-            3). Если свойство множественное с несколькими инпутами, то точно сработает name="<?=$htmlInputName?>[<?=$number?>][SOME_KEY]"
+            1). Если в форме один input или select (тоже не множественные), то name="<?=$htmlInputName?>" прокатит,
+            2). Если в форме один select с атрибутом multiple, то нужно name="<?=$htmlInputName?>[]" 
+            3). Если есть несколько инпутов, то нужно делать name="<?=$htmlInputName?>[KEY1]", name="<?=$htmlInputName?>[KEY2]" и т. д.
         -->
         <select name="<?=$htmlInputName?>" id=""></select>
             <option value="">-</option>
             <?php foreach ($items as $item): ?>
                 <option value="<?=$item['ID']?>"<?php if($item['ID'] === $chosenPropertyValue1):?> selected<?php endif?>><?=$item['NAME']?></option>
+            <?php endforeach ?>
+
+        <?php
+        $html = ob_get_contents();
+        ob_end_clean();
+
+        return $html;
+    }
+
+
+    /**
+     * @param array $arProperty Массив с информацией о свойстве
+     * @param array $values Массив c элементами ['VALUE' => string, 'DESCRIPTION' => string]. В $value['VALUE'] значения из формы, обработанные в ConvertFromDB/> 
+     * @param $htmlInputName Массив с какой-то шляпой, но с нужным параметром ['VALUE'] для инпутов
+     *
+     * @return false|string
+     */
+    static function GetPropertyFieldHtmlMulty($arProperty, $values, $htmlInputName) {
+        $value = $value['VALUE'];
+        $chosenPropertyValue1 = $value['FIRST_PROP_NAME'];
+        $chosenPropertyValue2 = $value['SECOND_PROP_NAME'];
+        $chosenPropertyValue3 = $value['THIRD_PROP_NAME'];
+
+        $items = self::getItemList(); // Выборка необходимых элементов
+        $number = 0;
+        ob_start()
+        ?>
+
+        <!--
+            1). Если один input, то name="<?=$htmlInputName?>[][]" // ? Это точно хз, лучше перепроверить
+            2). Если input'ов несколько, то точно сработает name="<?=$htmlInputName?>[<?=$number?>][SOME_KEY]"
+        -->
+
+        <!-- Если один инпут, то надо попробовать ещё вот так -->
+        <select name="<?=$htmlInputName?>[<?=$number?>]"></select> 
+            <option value="">-</option>
+            <?php foreach ($items as $item): ?>
+                <?php
+                $value = $value['VALUE'];
+                $chosenOptionId = $value['FIRST_PROP_NAME'];
+                ?>
+                
+                <option value="<?=$item['ID']?>"<?php if($item['ID'] === $chosenOptionId):?> selected<?php endif?>><?=$item['NAME']?></option>
+                <?php $number++ ?>
             <?php endforeach ?>
 
         <?php
@@ -84,6 +122,16 @@ class SomeCustomProperty {
      */
     public static function ConvertToDB($arProperty, $value)
     {
+        // Удаление пустых значений (пустая строка будет сериализоваться, поэтму её нужно чистить)
+        $isMultiple = $arProperty['MULTIPLE'] === true;
+        if ($isMultiple) {
+            foreach ($value as $key => $val) {
+                if (empty($val['VALUE']['SOME_KEY'])) {
+                    unset($value[$key]);
+                }
+            }
+        }
+
         // * Тут нужны проверки на пустые значения, чтобы каждый раз не добавлять пустое значение
         $value['VALUE'] = serialize($value['VALUE']);
         return $value;
@@ -101,7 +149,12 @@ class SomeCustomProperty {
         return $value;
     }
 
-    static function GetSettingsHTML($arProperty, $htmlInputName, &$arPropertyFields){
+
+    /**
+     * Добавляем кастомные настройки
+     */
+    static function GetSettingsHTML($arProperty, $strHTMLControlName, &$arPropertyFields){
+        // Это просто настройки того что показывать, что прятать и какие стантартные значения ставить
         $arPropertyFields = [
             'HIDE' => [
                 'SMART_FILTER',
@@ -117,7 +170,44 @@ class SomeCustomProperty {
             ],
         ];
 
+        // Кастомные свойства
+        $customProperties = $arProperty['USER_TYPE_SETTINGS'];
+        $savedValue = $customProperties['TEST'];
+
+        ob_start();
+        ?>
+
+        <tr>
+            <td>Кастомная настройка:</td>
+            <td><input type="text" name="<?=$strHTMLControlName['NAME']?>[TEST]" value="<?=$savedValue?>"></td>
+        </tr>
+
+        <?php
+        $html = ob_get_contents();
+        ob_end_clean();
+
+        /* Это возвращает поле с дополнительными настройками */
         return $html;
+    }
+
+
+    /**
+     * Нужно для сохранения кастомных настроек
+     */
+    static function PrepareSettings($arProperty)
+    {
+        // Массив со значениями дополнительных свойств, из GetSettingsHtml
+        $properties = $arProperty['USER_TYPE_SETTINGS'];
+        $testProperty = $properties['TEST'];
+
+        /**
+         * Эти поля появятся в методах GetPropertyFieldHtml и GetPropertyFieldHtmlMulty
+         * в первом параметре ($arProperty)
+         * с ключём USER_TYPE_SETTINGS
+         */
+        return [
+            'TEST' => $testProperty
+        ];
     }
 
 
