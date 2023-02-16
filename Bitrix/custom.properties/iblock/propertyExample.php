@@ -1,4 +1,9 @@
-<!-- https://training.bitrix24.com/api_help/iblock/classes/user_properties/GetUserTypeDescription.php -->
+<!-- 
+    https://training.bitrix24.com/api_help/iblock/classes/user_properties/GetUserTypeDescription.php 
+
+    Значения лежат в таблицах b_iblock_element_prop_s1 и b_iblock_element_prop_m1 (одиночные и множественные свойства соответственно, а 1 это id сайта)
+    Свойство будет называться PROP_{{id свойства}}
+-->
 
 <?php
 namespace App\CustomProperties;
@@ -57,12 +62,13 @@ class SomeCustomProperty {
             2). Если в форме один select с атрибутом multiple, то нужно name="<?=$htmlInputName?>[]" 
             3). Если есть несколько инпутов, то нужно делать name="<?=$htmlInputName?>[KEY1]", name="<?=$htmlInputName?>[KEY2]" и т. д.
         -->
-        <select name="<?=$htmlInputName?>" id=""></select>
+        <select name="<?=$htmlInputName?>" id="">
             <option value="">-</option>
             <?php foreach ($items as $item): ?>
                 <option value="<?=$item['ID']?>"<?php if($item['ID'] === $chosenPropertyValue1):?> selected<?php endif?>><?=$item['NAME']?></option>
             <?php endforeach ?>
-
+        </select>
+        
         <?php
         $html = ob_get_contents();
         ob_end_clean();
