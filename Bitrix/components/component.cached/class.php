@@ -5,7 +5,7 @@ class ExampleCachedComponent extends CBitrixComponent {
 
     public function onPrepareComponentParams($arParams)
     {
-        $this->cacheTime = $arParams["CACHE_TIME"];
+        $this->cacheTime = $arParams['CACHE_TIME'];
         return $arParams;
     }
 
@@ -13,25 +13,27 @@ class ExampleCachedComponent extends CBitrixComponent {
     {
         use Bitrix\Main\Data\Cache;
         $cache = Cache::createInstance();
-        $cachePath = "/contacts";
-        $cacheTime = $this->arParams["CACHE_TIME"];
-        $cacheKey = "contactsCache";
 
-        // * Тэгированный кэш (нормик)
-        if ($cache->startDataCache($cacheTime, $cacheKey, $cachePath)) {
+        // Или $cache = new CPHPCache();
+
+        $cachePath = 'some_cache_path';
+        $cacheTime = 86400;
+        $cacheId = 'some_cache_id';
+
+        if ($cache->startDataCache($cacheTime, $cacheId, $cachePath)) {
 
             $veryHugeList = $this-getMillionRowsFromDb();
 
-            $this->arResult["RETAIL_SHOPS"] = $this->getSomeShit();
+            $this->arResult['RETAIL_SHOPS'] = $this->getSomeShit();
 
             $cache->endDataCache([
-                "arResult" => $this->arResult,
-                "millionRows" => $veryHugeList
+                'arResult' => $this->arResult,
+                'millionRows' => $veryHugeList
             ]);
         } else {
             $cachedVars = $cache->getVars();
-            $millionRows = $cachedVars["millionRows"];
-            $this->arResult = $cachedVars["arResult"];
+            $millionRows = $cachedVars['millionRows'];
+            $this->arResult = $cachedVars['arResult'];
         }
 
 
@@ -39,7 +41,7 @@ class ExampleCachedComponent extends CBitrixComponent {
 
         // 1. Всё, что нужно закешировать будет в фигурнх скобках
         // 2. Второй параметр позволяет кэшировать по группам пользователей
-        if ($this->startResultCache($this->cacheTime, $GLOBALS["USER"]->GetGroups()))
+        if ($this->startResultCache($this->cacheTime, $GLOBALS['USER']->GetGroups()))
         {
             $this->getElementsList();
             $this->getSectionCodes();
