@@ -4,42 +4,73 @@
  * Получение товаров из корзины с их свойствами
  */
 public function getCartItems() : array
-    {
-        \Bitrix\Main\Loader::includeModule("sale");
-        $registry = Sale\Registry::getInstance(Sale\Registry::REGISTRY_TYPE_ORDER);
+{
+    \Bitrix\Main\Loader::includeModule("sale");
+    $registry = Sale\Registry::getInstance(Sale\Registry::REGISTRY_TYPE_ORDER);
 
-        /** @var Sale\Basket $basketClass */
-        $basketClass = $registry->getBasketClassName();
+    /** @var Sale\Basket $basketClass */
+    $basketClass = $registry->getBasketClassName();
 
-        $basketItemsResult = $basketClass::getList([
-            'filter' => [
-                'FUSER_ID' => Sale\Fuser::getId(),
-                '=LID' => SITE_ID,
-                'ORDER_ID' => null,
-            ],
-            'order' => [
-                'SORT' => 'ASC',
-                'ID' => 'ASC',
-            ],
-        ]);
+    $basketItemsResult = $basketClass::getList([
+        'filter' => [
+            'FUSER_ID' => Sale\Fuser::getId(),
+            '=LID' => SITE_ID,
+            'ORDER_ID' => null,
+        ],
+        'order' => [
+            'SORT' => 'ASC',
+            'ID' => 'ASC',
+        ],
+    ]);
 
-        $items = [];
-        while ($item = $basketItemsResult->fetch()) {
-            $items[$item['ID']] = $item;
-        }
-
-        $propertyResult = Sale\BasketPropertiesCollection::getList(
-            [
-                'filter' => [
-                    '=BASKET_ID' => array_keys($items)
-                ]
-            ]
-        );
-        while ($property = $propertyResult->fetch())
-        {
-            $items[$property['BASKET_ID']]['PROPERTIES'][] = $property;
-        }
-
-
-        return $items;
+    $items = [];
+    while ($item = $basketItemsResult->fetch()) {
+        $items[$item['ID']] = $item;
     }
+
+    $propertyResult = Sale\BasketPropertiesCollection::getList(
+        [
+            'filter' => [
+                '=BASKET_ID' => array_keys($items)
+            ]
+        ]
+    );
+    while ($property = $propertyResult->fetch())
+    {
+        $items[$property['BASKET_ID']]['PROPERTIES'][] = $property;
+    }
+
+
+    return $items;
+}
+
+
+/**
+ * Добавление товара в корзину
+ */
+public function addToCart(int $productId) : array
+{
+    $fields = [
+        'PRODUCT_ID' => $productId,
+        'QUANTITY' => 1,
+        'NAME' => $productElement['NAME'],
+        'PRODUCT_PROVIDER_CLASS' => '\Bitrix\Catalog\Product\CatalogProvider',
+    ];
+
+    /**
+     * Добавление свойств делается таким образом
+     */
+    $fields['PROPS'][] = [
+        'NAME' => 'Название свойства',
+        'CODE' => 'SOME_PROPERTY_CODE',
+        'VALUE' => $somePropertyValue,
+        'SORT' => 100
+    ];
+
+    $addResult = \Bitrix\Catalog\Product\Basket::addProduct($fields);
+
+    return [
+        'SUCCESS' => $addResult->isSuccess(),
+        'ERROR' => implode(', ', $addResult->getErrorMessages())
+    ];
+}
