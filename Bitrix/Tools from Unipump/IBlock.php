@@ -35,4 +35,19 @@ class IBlock
 
         return false;
     }
+
+    /**
+     * @param int|string $iblockId id инфоблока
+     *
+     * @return string
+     * @throws \Bitrix\Main\ArgumentException
+     * @throws \Bitrix\Main\ObjectPropertyException
+     * @throws \Bitrix\Main\SystemException
+     */
+    public static function getIblockType($iblockId) : string
+    {
+        $iblock = \CIBlock::GetList([], ['ID' => $iblockId])->fetch();
+        $iblockType = $iblock['IBLOCK_TYPE_ID'];
+        return $iblockType ?? '';
+    }
 }
