@@ -41,6 +41,19 @@ $shopsRequest = CIBlockElement::GetList([], [
     ], false, false, ['PROPERTY_SALE_TYPE']
 );
 
+/**
+ * Фильтр по свойству типа "Список"
+ * Тут для фильтра нужно знать id значения свойства, которое можно получить через IBlockProperty::getIdByCode()
+ * Для фильтра по строковому значению можно использовать PROPERTY_*_VALUE (но лучше так не делать)
+ */
+$requestWithFilterByEnumField = \CIBlockElement::getList([], [
+    'FILTER' => [
+        'PROPERTY_ANY_ENUM_PROP' => 'ID (не XML_ID) значения этого же свойства'
+        // Или
+        'PROPERTY_ANY_ENUM_PROP_VALUE' => 'строковое значение свойства (говно)'
+    ]
+]);
+
 
 // ! Только на D7 с собственными таблицами (Пример в папке DBTable)
 
