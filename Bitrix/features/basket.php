@@ -65,6 +65,8 @@ public function addToCart(int $productId) : array
         'CODE' => 'SOME_PROPERTY_CODE',
         'VALUE' => $somePropertyValue,
         'SORT' => 100
+        'CUSTOM_PRICE' => 'Y', // Кастомная цена для товара
+        'PRICE' => 99999
     ];
 
     $addResult = \Bitrix\Catalog\Product\Basket::addProduct($fields);
