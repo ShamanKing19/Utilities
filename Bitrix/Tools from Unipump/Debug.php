@@ -3,7 +3,7 @@ namespace App\Tools;
 
 class Debug
 {
-    public static function prettyPrint($data)
+    public static function pprint($data)
     {
 
         ?>
