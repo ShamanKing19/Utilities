@@ -8,37 +8,28 @@
 <?php
 namespace App\CustomProperties;
 
-use Bitrix\Main\Localization\Loc,
-    Bitrix\Main\Loader;
 
-Loc::loadMessages(__FILE__);
-
-class SomeCustomProperty {
+class SomeCustomProperty 
+{
     public static function getTypeDescription()
     {
-        /**
-         * E - привязка к элементам
-         * S - строка
-         * ...
-         */
-
         return [
-            'PROPERTY_TYPE' => 'S', // Используем строку, потому что выводим html
+            'PROPERTY_TYPE' => 'S', // Используем строку, потому что сохраняем сериализованный массив
             'USER_TYPE' => 'SOME_PROPERTY', // Символьный код свойства
             'DESCRIPTION' => 'Меня ты увидишь в админке', // При выборе типа свойства будет отображаться это значение
             'GetPropertyFieldHtml' => [__CLASS__, 'GetPropertyFieldHtml'],
             'GetPropertyFieldHtmlMulty' => [__CLASS__, 'GetPropertyFieldHtmlMulty'],
             'GetSettingsHTML' => [__CLASS__, 'GetSettingsHTML'], // Позволяет добавить кастомные настройки для свойства
             'PrepareSettings' => [__CLASS__, 'PrepareSettings'], // Нужна чтобы сохранить настройки, добавленные в GetSettingsHtml
-            'ConvertToDB' => [__CLASS__, 'ConvertToDB'], // ! Нужно только когда сохраняем массив с ключами и значениями
-            'ConvertFromDB' => [__CLASS__, 'ConvertFromDB'], // ! Нужно только когда сохраняем массив с ключами и значениями 
+            'ConvertToDB' => [__CLASS__, 'ConvertToDB'], // ! Нужно только когда сохраняем массив
+            'ConvertFromDB' => [__CLASS__, 'ConvertFromDB'], // ! Нужно только когда сохраняем массив 
         ];
     }
 
 
     /**
      * @param array $arProperty Массив с информацией о свойстве
-     * @param string $value Массив ['VALUE' => 'string', 'DESCRIPTION' => 'string']. В $value['VALUE'] значения из формы, обработанные в ConvertFromDB/> 
+     * @param string $value Массив ['VALUE' => 'string', 'DESCRIPTION' => 'string']. В $value['VALUE'] значения из формы, обработанные в ConvertFromDB
      * @param $htmlInputName Массив с какой-то шляпой, но с нужным параметром ['VALUE'] для инпутов
      *
      * @return false|string
@@ -70,10 +61,7 @@ class SomeCustomProperty {
         </select>
         
         <?php
-        $html = ob_get_contents();
-        ob_end_clean();
-
-        return $html;
+        return ob_get_clean();
     }
 
 
@@ -114,10 +102,7 @@ class SomeCustomProperty {
             <?php endforeach ?>
 
         <?php
-        $html = ob_get_contents();
-        ob_end_clean();
-
-        return $html;
+        return ob_get_clean();
     }
 
 
@@ -179,11 +164,7 @@ class SomeCustomProperty {
         </tr>
 
         <?php
-        $html = ob_get_contents();
-        ob_end_clean();
-
-        /* Это возвращает поле с дополнительными настройками */
-        return $html;
+        return ob_get_clean();
     }
 
 
