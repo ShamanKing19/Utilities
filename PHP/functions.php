@@ -182,5 +182,33 @@ function writeCSV(array $data, string $path, bool $header = false, $columnDelimi
     }
 
     return $stringToCSV;
+}
 
+
+/**
+ * Чистит массив от пустых полей
+ * 
+ * @param array $array очищаемый массив
+ * @param array $keysToRemove ключи, которые также должны быть удалены
+ * @param array $valuesToKeep значения, которые удалять не нужно (для функции empty())
+ *
+ */
+function cleanArray(array $array, array $keysToRemove = [], array $valuesToKeep = []) : array
+{
+    $cleanedArray = [];
+    foreach($array as $key => $value) {
+        if(in_array($key, $keysToRemove)) {
+            continue;
+        }
+
+        if(is_array($value)) {
+            $value = cleanArray($value, $keysToRemove, $valuesToKeep);
+        }
+
+        if(!empty($value) || in_array($value, $valuesToKeep)) {
+            $cleanedArray[$key] = $value;
+        }
+    }
+
+    return $cleanedArray;
 }
