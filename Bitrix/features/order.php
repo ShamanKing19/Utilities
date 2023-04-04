@@ -6,13 +6,13 @@ function getOrders($isActiveOnly = false, $filter = [], $sort = []) : array
     global $USER;
     $filter['USER_ID'] = $USER->GetID();
 
-    if ($isActiveOnly) {
+     if($isActiveOnly) {
         $filter['!STATUS_ID'] = 'F';
     }
 
     $request = CSaleOrder::GetList($sort, $filter);
     $orders = [];
-    while ($res = $request->GetNext()) {
+    while($res = $request->GetNext()) {
         $orders[] = $res;
     }
 
@@ -35,7 +35,7 @@ function getStatuses() : array
     ]);
 
     $statuses = [];
-    while ($status = $request->Fetch()) {
+    while($status = $request->Fetch()) {
         $statuses[$status['STATUS_ID']] = $status;
     }
 
@@ -52,7 +52,7 @@ function getPaymentTypes() : array
         ]
     ]);
 
-    while ($res = $request->Fetch()) {
+    while($res = $request->Fetch()) {
         $payments[$res['ID']] = $res;
     }
 
@@ -71,11 +71,24 @@ function getPayments($orderIds) : array
         ],
     ]);
 
-    while ($res = $request->Fetch()) {
+    while($res = $request->Fetch()) {
         $payments[$res['ID']] = $res;
     }
 
     return $payments;
+}
+
+
+/**
+ * Получение информации о свойстве корзины по символьному коду
+ */
+function getOrderPropertyInfo(string $code) : array
+{
+    $request = \Bitrix\Sale\Internals\OrderPropsTable::getList([
+        'filter' => ['CODE' => $code]
+    ]);
+
+    return $request->fetch() ?: []; 
 }
 
 
@@ -105,7 +118,7 @@ function createOrder(
 
     $productList = $this->getProductsInfo($products);
 
-    foreach ($products as $productId => $quantity)
+    foreach($products as $productId => $quantity)
     {
         $productFields = [
             'PRODUCT_ID' => $productId,
@@ -137,7 +150,7 @@ function createOrder(
         'F_FIO' => $name
     ];
 
-    foreach ($arProperties['properties'] as $property) {
+    foreach($arProperties['properties'] as $property) {
         $prop = $propertyCollection->getItemByOrderPropertyId($property['ID']);
         $propCode = $prop->getField('CODE');
         $propValue = $propertyValues[$propCode];
@@ -159,7 +172,7 @@ function getProductsInfo($products)
         'ID', 'IBLOCK_ID', 'NAME'
     ]);
     $products = [];
-    while ($res = $request->Fetch()) {
+    while($res = $request->Fetch()) {
         $res['PRICE'] = \CCatalogProduct::GetOptimalPrice($res['ID']);
         $products[$res['ID']] = $res;
     }
