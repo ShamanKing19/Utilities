@@ -78,20 +78,20 @@ $request = Table::getList([
         'GROUP_OWNER_NAME' => 'GROUP_INFO.NAME',
     ],
     'runtime' => [
-        new Reference(
+        new \Bitrix\Main\ORM\Fields\Relations\Reference(
             'ELAPSED_TIME',
             ElapsedTimeTable::class,
-            Join::on('this.ID', 'ref.TASK_ID'),
+            \Bitrix\Main\Entity\Query\Join::on('this.ID', 'ref.TASK_ID'),
         ),
-        new Reference(
+        new \Bitrix\Main\ORM\Fields\Relations\Reference(
             'USER_INFO',
             UserTable::class,
-            Join::on('this.ELAPSED_TIME.USER_ID', 'ref.ID')
+            \Bitrix\Main\Entity\Query\Join::on('this.ELAPSED_TIME.USER_ID', 'ref.ID')
         ),
-        new Reference(
+        new \Bitrix\Main\ORM\Fields\Relations\Reference(
             'GROUP_INFO',
             WorkgroupTable::class,
-            Join::on('this.GROUP_ID', 'ref.ID')
+            \Bitrix\Main\Entity\Query\Join::on('this.GROUP_ID', 'ref.ID')
         )
     ]
 ]);
