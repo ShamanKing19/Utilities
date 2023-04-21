@@ -22,6 +22,6 @@ $resizedPictureArray = CFile::ResizeImageGet($imageId, ['width' => 100, 'height'
   * @param $uploadDir - путь отностиельно папки upload
   */
 
-$file = CFile::MakeFileArray($filePath); // Можно использовать id, путь к файлу, url файла с другого ресурса
-$uploadDir = '/files';
-CFile::SaveFile($photo, $uploadDir);
+$request = \Bitrix\Main\Context::getCurrent()->getRequest();
+$file = $request->getFile('SOME_FILE');
+$fileId = \CFile::saveFile($file, 'directory_to_save');
