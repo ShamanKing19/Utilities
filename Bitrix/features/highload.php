@@ -14,6 +14,7 @@ AddEventHandler("main", "OnUserTypeBuildList", ['App\CustomProperties\SomeProper
 class HighloadTable
 {
     private static string $tableName = 'название таблицы';
+    private static int $tableId = 1;
 
     /**
      * Получение Highload таблицы для запросов в стиле Entity\DataManager
@@ -25,7 +26,8 @@ class HighloadTable
      */
     public static function getTable()
     {
-        $entity = \Bitrix\Highloadblock\HighloadBlockTable::compileEntity(self::$tableName);
+        $entity = \Bitrix\Highloadblock\HighloadBlockTable::compileEntity(self::$tableName); // Можно обоими способами
+        $entity = \Bitrix\Highloadblock\HighloadBlockTable::compileEntity(self::$tableId);
         return $entity->getDataClass();
     }
 }
