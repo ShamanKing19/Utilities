@@ -1,5 +1,16 @@
 <?php
 
+/**
+ * Добавление кастомных свойств
+ * 1. Создание свойства как для обычного инфоблока
+ * 2. Вызов AddEventHandler как указано ниже
+ */
+AddEventHandler("main", "OnUserTypeBuildList", ['App\CustomProperties\SomeProperty', 'getTypeDescription']);
+
+
+ /**
+  * Работа с таблицей
+  */
 class HighloadTable
 {
     private static string $tableName = 'название таблицы';
