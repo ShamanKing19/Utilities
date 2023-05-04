@@ -1,2 +1,8 @@
 <?php
-\Bitrix\Iblock\Component\Tools::process404('Не найден товар', true, true, true, false);
+\Bitrix\Iblock\Component\Tools::process404(
+    'Не найден', //Сообщение
+    true, // Нужно ли определять 404-ю константу
+    true, // Устанавливать ли статус
+    true, // Показывать ли 404-ю страницу
+    false // Ссылка на отличную от стандартной 404-ю
+);
