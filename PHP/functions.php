@@ -1,14 +1,22 @@
 <?php
 
 /**
- * Удобный вывод информации через print_r
- * 
- * @param mixed $data
+ * Удобный вывод данных на страницу
+ *
+ * @param $data
  */
-function pprint($data)
-{
-    ?><pre
-        style="
+function pprint(...$data) {
+    $whereLine = false;
+    $debug = debug_backtrace();
+    foreach($data as $dt) {
+
+    if(!empty($debug) && is_array($debug)) {
+        $file = str_replace($_SERVER['DOCUMENT_ROOT'], '', $debug[0]['file']);
+        $whereLine = "\n\n".$file.' (строка: '.$debug[0]['line'].')';
+    }
+    ?>
+    <pre
+            style="
         max-height: 500px;
         overflow-y: auto;
         font-size: 14px;
@@ -16,8 +24,12 @@ function pprint($data)
         padding: 10px;
         overflow-x: auto;
         font-family: Consolas, monospace;
-        background: lightgoldenrodyellow;"
-    ><?=htmlspecialchars(print_r($data, true))?></pre><?php
+        background: lightgoldenrodyellow;
+        text-align: left !important;
+        "
+    ><?=htmlspecialchars(print_r($dt, true));?><?=$whereLine;?></pre>
+    <?php
+    }
 }
 
 
@@ -27,7 +39,7 @@ function pprint($data)
  * @param bool $slashAtEnd
  * @return string
  */
-function currentDomain(bool $slashAtEnd = false): string
+function getCurrentDomain(bool $slashAtEnd = false): string
 {
     $protocol = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] != 'off') ||
         $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
@@ -68,14 +80,23 @@ function endsWith(string $haystack, string $needle): bool {
  * Возвращает разделённый массив файлов
  *
  * @param array $filesArray элемент глобального массива $_FILES
- * @return array            массив с элементами имеющими структуру $_FILES[$elem]
+ * @return array массив с элементами имеющими структуру $_FILES[$elem]
  */
 function splitFilesList(array $filesArray): array
 {
     $prettyFilesList = [];
-    foreach ($filesArray["tmp_name"] as $key => $photo)
+    if(!is_array($filesArray["tmp_name"])) {
+        if(empty($filesArray["tmp_name"])) {
+            return [];
+        }
+
+        return [$filesArray];
+    }
+
+    foreach($filesArray["tmp_name"] as $key => $path)
     {
-        $prettyFilesList[] = [
+        if(empty($path)) continue;
+        $prettyFilesList[$key] = [
             "name" => $filesArray["name"][$key],
             "type" => $filesArray["type"][$key],
             "tmp_name" => $filesArray["tmp_name"][$key],
@@ -83,6 +104,7 @@ function splitFilesList(array $filesArray): array
             "size" => $filesArray["size"][$key]
         ];
     }
+
     return $prettyFilesList;
 }
 
@@ -90,13 +112,13 @@ function splitFilesList(array $filesArray): array
 /**
  * Изменяет окончание слова в зависимости от количества позиций
  *
- * @param int    $number                Количество
- * @param string $nominativeMessage     Слово в именительном падеже
- * @param string $genitiveMessage       Слово в родительном падеже
- * @param string $accusativeMessage     Слово в винительном падеже
- * @return string   Слово в падеже, соответствующему указанному количеству
+ * @param int $number количество
+ * @param string $nominativeMessage название в именительном падеже (есть кто? что?) (1)
+ * @param string $genitiveMessage название в родительном падеже (нет кого? чего?) (2-4)
+ * @param string $accusativeMessage название в винительном падеже (вижу кого? что?) (5-9)
+ * @return string отформатированное название
  */
-function declinateProductWord(int $number, string $nominativeMessage, string $genitiveMessage, string $accusativeMessage) : string
+function declinateWord(int $number, string $nominativeMessage, string $genitiveMessage, string $accusativeMessage) : string
 {
     $exceptions = range(11, 20);
     if ($number % 10 == 1 && !in_array($number % 100, $exceptions)) {
@@ -108,6 +130,26 @@ function declinateProductWord(int $number, string $nominativeMessage, string $ge
     }
 
     return $word;
+}
+
+
+/**
+ * Чистим номер телефона от всего, кроме цифр
+ *
+ * @param string $phone Номер телефона в любом формате
+ * @param bool $savePlus Сохранять ли плюс в номере
+ * @return array|string|null
+ */
+function cleanPhoneString(string $phone, bool $savePlus = false): string
+{
+    $plus = false;
+    if($savePlus) {
+        $plus = '+';
+    }
+
+    $regex = '/[^0-9'.$plus.'.]+/';
+
+    return preg_replace($regex, '', $phone);
 }
 
 
@@ -187,11 +229,10 @@ function writeCSV(array $data, string $path, bool $header = false, $columnDelimi
 
 /**
  * Чистит массив от пустых полей
- * 
- * @param array $array очищаемый массив
- * @param array $keysToRemove ключи, которые также должны быть удалены
- * @param array $valuesToKeep значения, которые удалять не нужно (для функции empty())
  *
+ * @param array $array очищаемый массив
+ * @param array $keysToRemove ключи, подлежащие удалению
+ * @param array $valuesToKeep значения, которые удалять не надо (0, '0' или '')
  */
 function cleanArray(array $array, array $keysToRemove = [], array $valuesToKeep = []) : array
 {
@@ -211,4 +252,14 @@ function cleanArray(array $array, array $keysToRemove = [], array $valuesToKeep 
     }
 
     return $cleanedArray;
+}
+
+/**
+ * Возвращает JSON-представление данных
+ *
+ * @param array $array
+ * @return false|string
+ */
+function toJson(array $array) {
+    return json_encode($array, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
 }

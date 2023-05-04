@@ -8,7 +8,7 @@
  */
 function getActionLinks($elementId, $elementIBlockId) : array
 {
-    $actions = CIBlock::GetPanelButtons($elementIBlockId, $elementId);
+    $actions = \CIBlock::GetPanelButtons($elementIBlockId, $elementId);
 
     $links = [
         "EDIT_LINK" => $actions["edit"]["edit_element"]["ACTION_URL"],
@@ -26,7 +26,7 @@ function getActionLinks($elementId, $elementIBlockId) : array
  */
 function getIblockIdByCode(string $code)
 {
-    $iBlock = IblockTable::getRow([
+    $iBlock = \Bitrix\Iblock\IblockTable::getRow([
         'filter' => [
             'CODE' => $code
         ],
@@ -120,16 +120,17 @@ function createIBlockElement(array $fields, array $properties) : int
  * Запускает событие по отправке почтового шаблона с переданными полями
  * (Настройки продукта -> Почтовые и СМС события)
  *
- * @param string $eventName Название почтового события (Типы событий)
- * @param array $fields     Ассоциативный массив со значениями, которые можно использовать в почтовом шаблоне, привязанному к почтовому событию
+ * @param string $eventName название почтового события (Типы событий)
+ * @param array $fields массив со значениями, которые можно использовать в почтовом шаблоне, привязанному к почтовому событию
+ * @param string $siteId название сайта (используется 's1' вместо SITE_ID, т. к. при использовании в админке SITE_ID = 'ru )
  * return $result
  */
-function sendEmail(string $eventName, array $fields, string $siteId = SITE_ID)
+function sendEmail(string $eventName, array $fields, string $siteId = 's1')
 {
     return Bitrix\Main\Mail\Event::send([
-        "EVENT_NAME" => $eventName,
-        "LID" => $siteId,
-        "C_FIELDS" => $fields
+        'EVENT_NAME' => $eventName,
+        'LID' => $siteId,
+        'C_FIELDS' => $fields
     ]);
 }
 
@@ -142,7 +143,7 @@ function sendEmail(string $eventName, array $fields, string $siteId = SITE_ID)
  */
 function getCurrentLanguage(bool $toUpper = false): string
 {
-    $lang = Bitrix\Main\Application::getInstance()->getContext()->getLanguage();
+    $lang = \Bitrix\Main\Application::getInstance()->getContext()->getLanguage();
 
     if($toUpper) {
         $lang = strtoupper($lang);
@@ -157,6 +158,6 @@ function getCurrentLanguage(bool $toUpper = false): string
  * @return mixed|string
  */
 function getLogoutUrl() {
-    return CHTTP::urlAddParams('/', ["logout" => 'yes', 'sessid' => bitrix_sessid()]);
+    return \CHTTP::urlAddParams('/', ["logout" => 'yes', 'sessid' => bitrix_sessid()]);
 }
 
