@@ -36,8 +36,6 @@ class Order
 
         $service = \Bitrix\Sale\PaySystem\Manager::getObjectById($payment->getPaymentSystemId());
         $context = \Bitrix\Main\Application::getInstance()->getContext();
-        $service->initiatePay($payment, $context->getRequest());
-
         $result = $service->initiatePay($payment, $context->getRequest(), \Bitrix\Sale\PaySystem\BaseServiceHandler::STRING);
         $paymentUrl = $result->getPaymentUrl();
         return $paymentUrl ?: '';
