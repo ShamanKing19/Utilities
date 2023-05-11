@@ -130,28 +130,25 @@ class Order
         $statusRequest = \Bitrix\Sale\Internals\StatusTable::getList([
             'order' => ['SORT'=>'ASC'],
             'filter' => [
-                'LOGIC' => 'OR',
+                'LANG.LID' => getCurrentLanguage(),
                 [
+                    'LOGIC' => 'OR',
                     '=TYPE' => 'O',
                     '!ID' => $excludeIds
                 ]
+            ],
+            'select' => ['*', 'STATUS_ID' => 'LANG.STATUS_ID', 'LID' => 'LANG.LID', 'NAME' => 'LANG.NAME', 'DESCRIPTION' => 'LANG.DESCRIPTION'],
+            'runtime' => [
+                new \Bitrix\Main\ORM\Fields\Relations\Reference(
+                    'LANG',
+                    \Bitrix\Sale\Internals\StatusLangTable::class,
+                    \Bitrix\Main\ORM\Query\Join::on('this.ID', 'ref.STATUS_ID'),
+                )
             ]
         ]);
 
-        $statusLangRequest = \Bitrix\Sale\Internals\StatusLangTable::getList([
-            'filter' => [
-                'LID' => getCurrentLanguage(),
-            ],
-        ]);
-
-        $langStatuses = [];
-        while ($status = $statusLangRequest->Fetch()) {
-            $langStatuses[$status['STATUS_ID']] = $status;
-        }
-
         $statuses = [];
-        while ($status = $statusRequest->Fetch()) {
-            $status += $langStatuses[$status['ID']];
+        while($status = $statusRequest->fetch()) {
             $statuses[$status['ID']] = $status;
         }
 
