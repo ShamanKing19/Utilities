@@ -12,7 +12,7 @@ class Response
     private string $defaultErrorMessage = 'Упс, что-то пошло не так...';
     private string $sessionErrorMessage = 'Сессия недействительна. Пожалуйста, перезагрузите страницу.';
 
-    public function __construct(bool $success)
+    public function __construct(bool $success = true)
     {
         $this->success = $success;
         $this->data = [];
