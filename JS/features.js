@@ -1,30 +1,58 @@
+/**
+ * Отправка ajax запроса
+ *
+ * @param {String} path путь до ajax обработчика
+ * @param {Object} data данные
+ * @param {String} method тип запроса
+ * @return {Promise<*>}
+ */
+async function sendAjax(path, data, method = 'post') {
+    return $.ajax({
+        url: path,
+        method: method,
+        data: data,
+        success: function(response) {
+            return response.data;
+        },
+        error: function(error) {
+            return false;
+        }
+    });
+}
+
 
 /**
- * Нахождение всех элементов, следующих за переданным в параметре
- * 
- * @param {Node} node       Элемент, с которого начинается поиск
- * @return {Array<Node>}    Массив последующих элементов
+ * Отправка данных формы по ajax
+ *
+ * @param {String} path путь до ajax обработчика
+ * @param {FormData} formData данные формы
+ * @param {String} method тип запроса
+ * @return {Promise<*>}
  */
-function getElementSiblings(node);
-    const result = [];
-    let node = document.querySelector('.firstNode');
-
-    while (node) {
-        if (node !== this && node.nodeType === Node.ELEMENT_NODE)
-            result.push(node);
-        node = node.nextElementSibling || node.nextSibling;
-    }
-
-    return result;
+async function sendAjaxForm(path, formData, method = 'post') {
+    return $.ajax({
+        url: path,
+        method: method,
+        contentType: false,
+        processData: false,
+        data: formData,
+        success: function(response) {
+            return response.data;
+        },
+        error: function(error) {
+            return false;
+        }
+    });
+}
 
 
 /**
  * Запускает функцию с задержкой с защитой от повторного вызова
- * 
- * @param {Node} element    Элемент, на который вешается событие
- * @param {String} event    Событие, при котором срабатывает передаваемая функция
- * @param {Number} pauseTimeMs Пауза
- * @param {Function} func   Функция, которая вызовется через pauseTimeMs
+ *
+ * @param {Node} element элемент, на который вешается событие
+ * @param {String} event событие, при котором срабатывает передаваемая функция
+ * @param {Number} pauseTimeMs пауза
+ * @param {Function} func функция, которая вызовется через pauseTimeMs
  */
 function debounce(element, event, pauseTimeMs, func) {
     let timeout;
