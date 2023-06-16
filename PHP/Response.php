@@ -1,6 +1,4 @@
 <?php
-namespace App;
-
 use JetBrains\PhpStorm\NoReturn;
 use JetBrains\PhpStorm\ArrayShape;
 
@@ -9,13 +7,20 @@ class Response
     private bool $success;
     private array $data;
     private string $error;
-    private string $defaultErrorMessage = 'Упс, что-то пошло не так...';
+    private string $defaultErrorMessage = 'Something went wrong...';
     private string $sessionErrorMessage = 'Сессия недействительна. Пожалуйста, перезагрузите страницу.';
 
-    public function __construct(bool $success = true)
+    private function __construct(bool $success, int $statusCode)
     {
+        http_response_code($statusCode);
         $this->success = $success;
         $this->data = [];
+    }
+
+
+    public static function getInstance(bool $success = true, int $statusCode = 200) : self
+    {
+        return new self($success, $statusCode);
     }
 
 
@@ -32,6 +37,16 @@ class Response
         } else {
             $this->data = [$key => $value];
         }
+    }
+
+
+    /**
+     * Добавление сразу нескольких полей к уже существующим
+     * @param array $data данные
+     */
+    public function mergeData(array $data) : void
+    {
+        $this->data = array_merge($this->data, $data);
     }
 
 
@@ -60,8 +75,9 @@ class Response
      * Добавление сообщения об ошибке и установка неудачного статуса ответа
      * @param string $message сообщение об ошибке
      */
-    public function setError(string $message = '') : void
+    public function setError(string $message = '', int $statusCode = 400) : void
     {
+        $this->setStatusCode($statusCode);
         if(empty($message)) {
             $message = $this->defaultErrorMessage;
         }
@@ -70,20 +86,26 @@ class Response
         $this->success = false;
     }
 
+    /**
+     * Формирование массива из данных
+     */
     #[ArrayShape([
-        'SUCCESS' => 'bool',
-        'DATA' => 'array',
-        'ERROR' => 'string'
+        'success' => 'bool',
+        'data' => 'array',
+        'error' => 'string'
     ])]
     public function toArray() : array
     {
-        $response = ['SUCCESS' => $this->success];
+        $response = [
+            'success' => $this->success,
+            'timestamp' => time()
+        ];
         if($this->data) {
-            $response['DATA'] = $this->data;
+            $response['data'] = $this->data;
         }
 
         if(!$this->success) {
-            $response['ERROR'] = $this->error ?: $this->defaultErrorMessage;
+            $response['error'] = $this->error ?: $this->defaultErrorMessage;
         }
 
         return $response;
@@ -94,12 +116,41 @@ class Response
      * Отправка ответа на запрос
      */
     #[NoReturn] #[ArrayShape([
-        'SUCCESS' => 'bool',
-        'DATA' => 'array',
-        'ERROR' => 'string'
+        'success' => 'bool',
+        'data' => 'array',
+        'error' => 'string'
     ])]
     public function send() : void
     {
+        $this->setJsonHeaders();
         die(json_encode($this->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+    }
+
+
+    /**
+     * Установка и отправка сообщения об ошибке
+     * @param string $message
+     */
+    #[NoReturn] #[ArrayShape([
+        'success' => 'bool',
+        'error' => 'string'
+    ])]
+    public function sendError(string $message = '') : void
+    {
+        $this->setError($message);
+        $this->send();
+    }
+
+
+    private function setStatusCode(int $statusCode) : void
+    {
+        header('Status: ' . $statusCode, true, $statusCode);
+        header('X-PHP-Response-Code: ' . $statusCode, true, $statusCode);
+    }
+
+
+    private function setJsonHeaders() : void
+    {
+        header('Content-Type: application/json');
     }
 }
