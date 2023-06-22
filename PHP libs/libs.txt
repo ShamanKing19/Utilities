@@ -4,3 +4,6 @@ URL: https://phpspreadsheet.readthedocs.io/en/latest/#getting-started
 2. PhpOffice - шаблонизатор docx
 composer require phpoffice/phpword
 URL: https://kisameev.ru/php-lesson/generaciya-word-dokumenta-na-php-shablon-docx
+
+3. PHPStamp - шаблонизатор docx
+https://github.com/shadz3rg/PHPStamp
