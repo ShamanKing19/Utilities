@@ -1,2 +1,6 @@
 1. PhpSpreadsheet - либа для чтения, создания, редактирования xlsx, csv, pdf... 
 URL: https://phpspreadsheet.readthedocs.io/en/latest/#getting-started 
+
+2. PhpOffice - шаблонизатор docx
+composer require phpoffice/phpword
+URL: https://kisameev.ru/php-lesson/generaciya-word-dokumenta-na-php-shablon-docx
