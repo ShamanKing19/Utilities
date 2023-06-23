@@ -1,5 +1,22 @@
 <?php
 
+/**
+ * @link https://github.com/bramus/router#subrouting--mounting-routes
+ * 
+ * Старт
+ * $router = new Router();
+ * $router->setBasePath('/api'); // если находимся в папке api
+ * 
+ * Группа запросов 
+ * $router->group('/project', function() use ($router) {
+ *     $router->get('/create', function() {}); GET запрос
+ *     $router->post('/create', function() {}); POST запрос
+ *     $router->all('/create', function() {}); Все запросы
+ * })
+ * 
+ * ! Данные $_REQUEST не хранит. Обеспечивает только маршрутизацию.
+ */
+
 class Router
 {
     /**
@@ -160,7 +177,7 @@ class Router
      * @param string   $baseRoute The route sub pattern to mount the callbacks on
      * @param callable $fn        The callback method
      */
-    public function mount($baseRoute, $fn)
+    public function group($baseRoute, $fn)
     {
         // Track current base route
         $curBaseRoute = $this->baseRoute;
