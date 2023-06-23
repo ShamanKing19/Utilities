@@ -61,7 +61,7 @@ class Router
      * @param string $pattern A route pattern such as /about/system
      * @param object|callable $fn The handling function to be executed
      */
-    public function before($methods, $pattern, $fn)
+    public function before($methods, $pattern, $fn) : void
     {
         $pattern = $this->baseRoute . '/' . trim($pattern, '/');
         $pattern = $this->baseRoute ? rtrim($pattern, '/') : $pattern;
@@ -81,7 +81,7 @@ class Router
      * @param string $pattern A route pattern such as /about/system
      * @param object|callable $fn The handling function to be executed
      */
-    public function match($methods, $pattern, $fn)
+    public function match($methods, $pattern, $fn) : void
     {
         $pattern = $this->baseRoute . '/' . trim($pattern, '/');
         $pattern = $this->baseRoute ? rtrim($pattern, '/') : $pattern;
@@ -100,7 +100,7 @@ class Router
      * @param string $pattern A route pattern such as /about/system
      * @param object|callable $fn The handling function to be executed
      */
-    public function all($pattern, $fn)
+    public function all($pattern, $fn) : void
     {
         $this->match('GET|POST|PUT|DELETE|OPTIONS|PATCH|HEAD', $pattern, $fn);
     }
@@ -111,7 +111,7 @@ class Router
      * @param string $pattern A route pattern such as /about/system
      * @param object|callable $fn The handling function to be executed
      */
-    public function get($pattern, $fn)
+    public function get($pattern, $fn) : void
     {
         $this->match('GET', $pattern, $fn);
     }
@@ -122,7 +122,7 @@ class Router
      * @param string $pattern A route pattern such as /about/system
      * @param object|callable $fn The handling function to be executed
      */
-    public function post($pattern, $fn)
+    public function post($pattern, $fn) : void
     {
         $this->match('POST', $pattern, $fn);
     }
@@ -133,7 +133,7 @@ class Router
      * @param string $pattern A route pattern such as /about/system
      * @param object|callable $fn The handling function to be executed
      */
-    public function patch($pattern, $fn)
+    public function patch($pattern, $fn) : void
     {
         $this->match('PATCH', $pattern, $fn);
     }
@@ -144,7 +144,7 @@ class Router
      * @param string $pattern A route pattern such as /about/system
      * @param object|callable $fn The handling function to be executed
      */
-    public function delete($pattern, $fn)
+    public function delete($pattern, $fn) : void
     {
         $this->match('DELETE', $pattern, $fn);
     }
@@ -155,7 +155,7 @@ class Router
      * @param string $pattern A route pattern such as /about/system
      * @param object|callable $fn The handling function to be executed
      */
-    public function put($pattern, $fn)
+    public function put($pattern, $fn) : void
     {
         $this->match('PUT', $pattern, $fn);
     }
@@ -166,7 +166,7 @@ class Router
      * @param string $pattern A route pattern such as /about/system
      * @param object|callable $fn The handling function to be executed
      */
-    public function options($pattern, $fn)
+    public function options($pattern, $fn) : void
     {
         $this->match('OPTIONS', $pattern, $fn);
     }
@@ -177,7 +177,7 @@ class Router
      * @param string $baseRoute The route sub pattern to mount the callbacks on
      * @param callable $fn The callback method
      */
-    public function group($baseRoute, $fn)
+    public function group($baseRoute, $fn) : void
     {
         // Track current base route
         $curBaseRoute = $this->baseRoute;
@@ -197,7 +197,7 @@ class Router
      *
      * @return array The request headers
      */
-    public function getRequestHeaders()
+    public function getRequestHeaders() : array
     {
         $headers = [];
 
@@ -226,7 +226,7 @@ class Router
      *
      * @return string The Request method to handle
      */
-    public function getRequestMethod()
+    public function getRequestMethod() : string
     {
         // Take the method as found in $_SERVER
         $method = $_SERVER['REQUEST_METHOD'];
@@ -252,7 +252,7 @@ class Router
      *
      * @param string $namespace A given namespace
      */
-    public function setNamespace($namespace)
+    public function setNamespace($namespace) : void
     {
         if(is_string($namespace)) {
             $this->namespace = $namespace;
@@ -264,7 +264,7 @@ class Router
      *
      * @return string The given Namespace if exists
      */
-    public function getNamespace()
+    public function getNamespace() : string
     {
         return $this->namespace;
     }
@@ -276,7 +276,7 @@ class Router
      *
      * @return bool
      */
-    public function run($callback = null)
+    public function run($callback = null) : bool
     {
         // Define which method we need to handle
         $this->requestedMethod = $this->getRequestMethod();
@@ -317,7 +317,7 @@ class Router
      * @param object|callable|string $match_fn The function to be executed
      * @param object|callable $fn The function to be executed
      */
-    public function set404($match_fn, $fn = null)
+    public function set404($match_fn, $fn = null) : void
     {
         if(!is_null($fn)) {
             $this->notFoundCallback[$match_fn] = $fn;
@@ -331,7 +331,7 @@ class Router
      *
      * @param string $pattern A route pattern such as /about/system
      */
-    public function trigger404($match = null)
+    public function trigger404($match = null) : void
     {
 
         // Counter to keep track of the number of routes we've handled
@@ -391,7 +391,7 @@ class Router
      *
      * @return bool -> is match yes/no
      */
-    private function patternMatches($pattern, $uri, &$matches, $flags)
+    private function patternMatches($pattern, $uri, &$matches, $flags) : bool
     {
         // Replace all curly braces matches {} into word patterns (like Laravel)
         $pattern = preg_replace('/\/{(.*?)}/', '/(.*?)', $pattern);
@@ -408,7 +408,7 @@ class Router
      *
      * @return int The number of routes handled
      */
-    private function handle($routes, $quitAfterRun = false)
+    private function handle($routes, $quitAfterRun = false) : int
     {
         // Counter to keep track of the number of routes we've handled
         $numHandled = 0;
@@ -457,7 +457,7 @@ class Router
         return $numHandled;
     }
 
-    private function invoke($fn, $params = [])
+    private function invoke($fn, $params = []) : void
     {
         if(is_callable($fn)) {
             call_user_func_array($fn, $params);
@@ -508,7 +508,7 @@ class Router
      *
      * @return string
      */
-    public function getCurrentUri()
+    public function getCurrentUri() : string
     {
         // Get the current Request URI and remove rewrite base path from it (= allows one to run the router in a sub folder)
         $uri = substr(rawurldecode($_SERVER['REQUEST_URI']), strlen($this->getBasePath()));
@@ -527,7 +527,7 @@ class Router
      *
      * @return string
      */
-    public function getBasePath()
+    public function getBasePath() : string
     {
         // Check if server base path is defined, if not define it.
         if($this->serverBasePath === null) {
@@ -544,11 +544,16 @@ class Router
      *
      * @param string
      */
-    public function setBasePath($serverBasePath)
+    public function setBasePath($serverBasePath) : void
     {
         $this->serverBasePath = $serverBasePath;
     }
 
+    /**
+     * Get all routes and it's handlers
+     *
+     * @return array
+     */
     public function getRouteList() : array
     {
         return $this->afterRoutes;

@@ -30,13 +30,15 @@ class Response
      * @param string $key ключ
      * @param mixed $value значение
      */
-    public function addData(string $key, mixed $value) : void
+    public function addData(string $key, mixed $value) : self
     {
         if($this->data) {
             $this->data[$key] = $value;
         } else {
             $this->data = [$key => $value];
         }
+
+        return $this;
     }
 
 
@@ -54,20 +56,23 @@ class Response
      * Установка данных к запросу
      * @param array $data данные
      */
-    public function setData(array $data) : void
+    public function setData(array $data) : self
     {
         if($data) {
             $this->data = $data;
         }
+
+        return $this;
     }
 
 
     /**
      * Установка статуса ошибки сессии
      */
-    public function setSessionError() : void
+    public function setSessionError() : self
     {
         $this->setError($this->sessionErrorMessage);
+        return $this;
     }
 
 
@@ -75,7 +80,7 @@ class Response
      * Добавление сообщения об ошибке и установка неудачного статуса ответа
      * @param string $message сообщение об ошибке
      */
-    public function setError(string $message = '', int $statusCode = 400) : void
+    public function setError(string $message = '', int $statusCode = 400) : self
     {
         $this->setStatusCode($statusCode);
         if(empty($message)) {
@@ -84,6 +89,8 @@ class Response
 
         $this->error = $message;
         $this->success = false;
+
+        return $this;
     }
 
     /**
