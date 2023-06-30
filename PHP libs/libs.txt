@@ -7,3 +7,10 @@ URL: https://kisameev.ru/php-lesson/generaciya-word-dokumenta-na-php-shablon-doc
 
 3. PHPStamp - шаблонизатор docx
 https://github.com/shadz3rg/PHPStamp
+
+4. Tracy - PHP debugger - удобное отображение ошибок (Нужно включать как можно раньше) - \Trace\Debugger::enable(Debugger::Development);
+Вообще имба. Юзать, по-хорошему, в каждом проекте. Есть метод dump()
+composer require tracy/tracy
+
+5. Какая-то штука, попробовать
+https://packagist.org/packages/itsgoingd/clockwork
