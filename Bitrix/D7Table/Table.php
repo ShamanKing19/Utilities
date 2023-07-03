@@ -58,7 +58,7 @@ class Table extends Entity\DataManager
                 "STRING_FIELD_NAME",
                 [
                     "required" => false,
-                    "unique" => true // Оно есть, но работает или нет - вопрос
+                    "unique" => true // Скорее всего нужно для полей, у которых стоит primary => true (в паре с первичным ключом должно быть unique => false)
                     ]
                 ),
             new FloatField(

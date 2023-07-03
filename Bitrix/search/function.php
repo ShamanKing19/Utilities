@@ -20,10 +20,13 @@ public static function fullTextSearchInIBlock(
     array $aSort = []
 ): array
 {
+
+    // Вот эти замены могу ломать поиск
     $replaceListToEmpty = [
         '"', '»', '«', '\'', '(', ')', '/', '-'
     ];
 
+    // Вот эти замены могу ломать поиск
     $replaceListToSpace = [
         '_', ','
     ];
