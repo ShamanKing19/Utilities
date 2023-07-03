@@ -60,7 +60,7 @@ class Router
      * @param string $pattern маршрут
      * @param object|callable|array|string $fn callback
      */
-    public function before(string $methods, string $pattern, $fn)
+    public function before(string $methods, string $pattern, $fn) : void
     {
         $pattern = $this->baseRoute . '/' . trim($pattern, '/');
         $pattern = $this->baseRoute ? rtrim($pattern, '/') : $pattern;
@@ -78,9 +78,9 @@ class Router
      *
      * @param string $methods список методов, разделённый символом "|"
      * @param string $pattern маршрут
-     * @param object|callable|array|string $fn callback
+     * @param callable|array|string $fn callback
      */
-    public function match(string $methods, string $pattern, $fn) : void
+    public function match(string $methods, string $pattern, callable|array|string $fn) : void
     {
         $pattern = $this->baseRoute . '/' . trim($pattern, '/');
         $pattern = $this->baseRoute ? rtrim($pattern, '/') : $pattern;
@@ -97,9 +97,9 @@ class Router
      * Установка обработчика для любого метода
      *
      * @param string $pattern маршрут
-     * @param object|callable|array|string $fn callback
+     * @param callable|array|string $fn callback
      */
-    public function all(string $pattern, $fn) : void
+    public function all(string $pattern, callable|array|string $fn) : void
     {
         $this->match('GET|POST|PUT|DELETE|OPTIONS|PATCH|HEAD', $pattern, $fn);
     }
@@ -108,9 +108,9 @@ class Router
      * Установка обработчика для метода GET
      *
      * @param string $pattern маршрут
-     * @param object|callable|array|string $fn callback
+     * @param callable|array|string $fn callback
      */
-    public function get(string $pattern, $fn) : void
+    public function get(string $pattern, callable|array|string $fn) : void
     {
         $this->match('GET', $pattern, $fn);
     }
@@ -119,9 +119,9 @@ class Router
      * Установка обработчика для метода POST
      *
      * @param string $pattern маршрут
-     * @param object|callable|array|string $fn callback
+     * @param callable|array|string $fn callback
      */
-    public function post(string $pattern, $fn) : void
+    public function post(string $pattern, callable|array|string $fn) : void
     {
         $this->match('POST', $pattern, $fn);
     }
@@ -130,9 +130,9 @@ class Router
      * Установка обработчика для метода PATCH
      *
      * @param string $pattern маршрут
-     * @param object|callable|array|string $fn callback
+     * @param callable|array|string $fn callback
      */
-    public function patch(string $pattern, $fn) : void
+    public function patch(string $pattern, callable|array|string $fn) : void
     {
         $this->match('PATCH', $pattern, $fn);
     }
@@ -141,9 +141,9 @@ class Router
      * Установка обработчика для метода DELETE
      *
      * @param string $pattern маршрут
-     * @param object|callable|array|string $fn callback
+     * @param callable|array|string $fn callback
      */
-    public function delete(string $pattern, $fn) : void
+    public function delete(string $pattern, callable|array|string $fn) : void
     {
         $this->match('DELETE', $pattern, $fn);
     }
@@ -152,9 +152,9 @@ class Router
      * Установка обработчика для метода PUT
      *
      * @param string $pattern маршрут
-     * @param object|callable|array|string $fn callback
+     * @param callable|array|string $fn callback
      */
-    public function put(string $pattern, $fn) : void
+    public function put(string $pattern, callable|array|string $fn) : void
     {
         $this->match('PUT', $pattern, $fn);
     }
@@ -163,9 +163,9 @@ class Router
      * Установка обработчика для метода OPTIONS
      *
      * @param string $pattern маршрут
-     * @param object|callable|array|string $fn callback
+     * @param callable|array|string $fn callback
      */
-    public function options(string $pattern, $fn) : void
+    public function options(string $pattern, callable|array|string $fn) : void
     {
         $this->match('OPTIONS', $pattern, $fn);
     }
@@ -264,11 +264,11 @@ class Router
     /**
      * Запуск роутера: сначала запуск middleware, потом поиск совпадающего маршрута
      *
-     * @param object|callable $callback Function to be executed after a matching route was handled (= after router middleware)
+     * @param callable $callback Function to be executed after a matching route was handled (= after router middleware)
      *
      * @return bool
      */
-    public function run($callback = null)
+    public function run(callable|null $callback = null) : bool
     {
         // Define which method we need to handle
         $this->requestedMethod = $this->getRequestMethod();
@@ -320,6 +320,7 @@ class Router
 
     /**
      * Triggers 404 response (not finished)
+     * TODO: Доделать
      */
     public function trigger404()
     {
