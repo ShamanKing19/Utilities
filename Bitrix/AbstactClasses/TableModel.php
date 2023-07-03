@@ -1,6 +1,4 @@
 <?php
-namespace App\Api\Models;
-
 /**
  * Предоставляет доступ к полям таблицы с помощью D7.
  * Всё, что нужно, унаследоваться от этого класса и установить в $table название таблицы, которой нужно выполнять запросы
@@ -55,6 +53,8 @@ abstract class TableModel extends \Bitrix\Main\Entity\DataManager
             } elseif(strpos($columnType, 'int') !== false) {
                 $fields[] = static::getIntegerField($columnName, $required, $defaultValue, $keyType, $extra);
             } elseif(strpos($columnType, 'double') !== false) {
+                $fields[] = static::getFloatField($columnName, $required, $defaultValue);
+            } elseif(strpos($columnType, 'decimal') !== false) {
                 $fields[] = static::getFloatField($columnName, $required, $defaultValue);
             } elseif (strpos($columnType, 'varchar') !== false) {
                 $fields[] = static::getStringField($columnName, $required, $defaultValue);
