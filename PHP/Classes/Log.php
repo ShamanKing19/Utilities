@@ -3,7 +3,7 @@ namespace App\Tools;
 
 class Log
 {
-    const LOG_ROOT = '/sl_logs';
+    const LOG_ROOT = '/zxc_logs';
 
     private string $logName;
     private bool $split;
@@ -19,7 +19,7 @@ class Log
      * @param string $logName название файла
      * @param bool $split разделять ли файл по папкам с датой (для длительных логов)
      */
-    public static function open(string $logName, bool $split = false): Log
+    public static function open(string $logName, bool $split = false): self
     {
         return new self($logName, $split);
     }

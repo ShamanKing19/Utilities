@@ -65,7 +65,6 @@ class Response
         return $this;
     }
 
-
     /**
      * Установка статуса ошибки сессии
      */
@@ -74,7 +73,6 @@ class Response
         $this->setError($this->sessionErrorMessage);
         return $this;
     }
-
 
     /**
      * Добавление сообщения об ошибке и установка неудачного статуса ответа
@@ -144,8 +142,7 @@ class Response
     ])]
     public function sendError(string $message = '') : void
     {
-        $this->setError($message);
-        $this->send();
+        $this->setError($message)->send();
     }
 
 
