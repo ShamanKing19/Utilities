@@ -8,8 +8,11 @@ abstract class TableModel extends \Bitrix\Main\Entity\DataManager
     /* @var string Название таблицы */
     public static string $table = '';
 
+    /* @var int Время хранения кэша */
+    protected static int $cacheTime = 86400;
+
     /* @var static Колонки таблицы */
-    protected static $columns;
+    protected static $columns = [];
 
 
     public static function getTableName()
@@ -20,11 +23,12 @@ abstract class TableModel extends \Bitrix\Main\Entity\DataManager
     public static function getMap()
     {
         if(empty(static::$columns)) {
-            $sqlColumns = static::getRawFieldsFromTable();
+            $sqlColumns = static::getCachedData();
+            if(empty($sqlColumns)) {
+                $sqlColumns = static::getRawFieldsFromTable();
+                static::cacheData($sqlColumns);
+            }
             static::$columns = static::getColumns($sqlColumns);
-            pprint($sqlColumns);
-            pprint(static::$columns);
-            pprint(count(static::$columns));
         }
 
         return static::$columns;
@@ -56,7 +60,7 @@ abstract class TableModel extends \Bitrix\Main\Entity\DataManager
                 $fields[] = static::getFloatField($columnName, $required, $defaultValue);
             } elseif(strpos($columnType, 'decimal') !== false) {
                 $fields[] = static::getFloatField($columnName, $required, $defaultValue);
-            } elseif (strpos($columnType, 'varchar') !== false) {
+            } elseif(strpos($columnType, 'varchar') !== false) {
                 $fields[] = static::getStringField($columnName, $required, $defaultValue);
             } elseif(strpos($columnType, 'char(1)') !== false) {
                 $fields[] = static::getBooleanField($columnName, $required, $defaultValue);
@@ -283,5 +287,58 @@ abstract class TableModel extends \Bitrix\Main\Entity\DataManager
         }
 
         return $columnList;
+    }
+
+    /**
+     * Сохранение данных к кэш
+     *
+     * @param array $data Данные, которое нужно сохранить
+     */
+    protected static function cacheData(array $data) : void
+    {
+        $cache = \Bitrix\Main\Data\Cache::createInstance();
+        $cache->startDataCache(static::$cacheTime, static::getCacheKey(), static::getCachePath());
+        $cache->endDataCache($data);
+    }
+
+    /**
+     * Получение данных из кэша
+     *
+     * @return array
+     */
+    protected static function getCachedData() : array
+    {
+        $cache = \Bitrix\Main\Data\Cache::createInstance();
+        if($cache->initCache(static::$cacheTime, static::getCacheKey(), static::getCachePath())) {
+            return $cache->getVars() ?? [];
+        }
+
+        return [];
+    }
+
+    /**
+     * Очистка кэша
+     *
+     * @param bool $all false - очистить только для текущей таблицы, true - для всех
+     */
+    public static function clearCache(bool $all = false) : void
+    {
+        $cache = \Bitrix\Main\Data\Cache::createInstance();
+        $cachePath = static::getCachePath();
+        if($all) {
+            $cache->cleanDir($cachePath);
+        } else {
+            $cache->clean(static::getCacheKey(), $cachePath);
+        }
+    }
+
+    protected static function getCacheKey() : string
+    {
+        return static::$table . '_d7_columns';
+    }
+
+    protected static function getCachePath() : string
+    {
+        return 'table_d7_columns_cache';
     }
 }
