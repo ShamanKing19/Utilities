@@ -22,7 +22,6 @@ namespace App\Api;
  * ! Метод mount() переименован в group()
  * ! Данные $_REQUEST не хранит. Обеспечивает только маршрутизацию.
  * </pre>
- * @package App
  *
  * @link https://github.com/bramus/router#subrouting--mounting-routes
  *
@@ -30,13 +29,13 @@ namespace App\Api;
 class Router
 {
     /* @var array The route patterns and their handling functions */
-    private array $afterRoutes = [];
+    private array $routeList = [];
 
     /* @var array The before middleware route patterns and their handling functions */
     private array $beforeRoutes = [];
 
-    /* @var array [object|callable] The function to be executed when no route has been matched */
-    protected array $notFoundCallback = [];
+    /* @var callback|array|string  The function to be executed when no route has been matched */
+    protected $notFoundCallback;
 
     /* @var string Current base route, used for (sub)route mounting */
     private string $baseRoute = '';
@@ -86,7 +85,7 @@ class Router
         $pattern = $this->baseRoute ? rtrim($pattern, '/') : $pattern;
 
         foreach(explode('|', $methods) as $method) {
-            $this->afterRoutes[$method][] = [
+            $this->routeList[$method][] = [
                 'pattern' => $pattern,
                 'fn' => $fn,
             ];
@@ -264,11 +263,11 @@ class Router
     /**
      * Запуск роутера: сначала запуск middleware, потом поиск совпадающего маршрута
      *
-     * @param callable $callback Function to be executed after a matching route was handled (= after router middleware)
+     * @param callable|null $callback Function to be executed after a matching route was handled (= after router middleware)
      *
      * @return bool
      */
-    public function run(callable|null $callback = null) : bool
+    public function run(callable $callback = null)
     {
         // Define which method we need to handle
         $this->requestedMethod = $this->getRequestMethod();
@@ -280,15 +279,13 @@ class Router
 
         // Handle all routes
         $numHandled = 0;
-        if(isset($this->afterRoutes[$this->requestedMethod])) {
-            $numHandled = $this->handle($this->afterRoutes[$this->requestedMethod], true);
+        if(isset($this->routeList[$this->requestedMethod])) {
+            $numHandled = $this->handle($this->routeList[$this->requestedMethod], true);
         }
 
         // If no route was handled, trigger the 404 (if any)
         if($numHandled === 0) {
-            if(isset($this->afterRoutes[$this->requestedMethod])) {
-                $this->trigger404($this->afterRoutes[$this->requestedMethod]);
-            }
+            $this->trigger404();
         } // If a route was handled, perform the finish callback (if any)
         elseif($callback && is_callable($callback)) {
             $callback();
@@ -306,68 +303,21 @@ class Router
     /**
      * Установка обработчика для ошибки 404
      *
-     * @param object|callable|string $matchFn The function to be executed
-     * @param object|callable $fn The function to be executed
+     * @param callable|array|string $fn callback
      */
-    public function set404($matchFn, $fn = null) : void
+    public function set404Handler($fn) : void
     {
-        if(!is_null($fn)) {
-            $this->notFoundCallback[$matchFn] = $fn;
-        } else {
-            $this->notFoundCallback['/'] = $matchFn;
-        }
+        $this->notFoundCallback = $fn;
     }
 
     /**
-     * Triggers 404 response (not finished)
-     * TODO: Доделать
+     * Запуск обработчика 404-й ошибки
      */
     public function trigger404()
     {
-
-        // Counter to keep track of the number of routes we've handled
-        $numHandled = 0;
-
-        // handle 404 pattern
-        if(count($this->notFoundCallback) > 0) {
-            // loop fallback-routes
-            foreach($this->notFoundCallback as $routePattern => $routeCallable) {
-
-                // matches result
-                $matches = [];
-
-                // check if there is a match and get matches as $matches (pointer)
-                $doesMatch = $this->patternMatches($routePattern, $this->getCurrentUri(), $matches);
-
-                // is fallback route match?
-                if($doesMatch) {
-
-                    // Rework matches to only contain the matches, not the orig string
-                    $matches = array_slice($matches, 1);
-
-                    // Extract the matched URL parameters (and only the parameters)
-                    $params = array_map(function ($match, $index) use ($matches) {
-
-                        // We have a following parameter: take the substring from the current param position until the next one's position (thank you PREG_OFFSET_CAPTURE)
-                        if(isset($matches[$index + 1]) && isset($matches[$index + 1][0]) && is_array($matches[$index + 1][0])) {
-                            if($matches[$index + 1][0][1] > -1) {
-                                return trim(substr($match[0][0], 0, $matches[$index + 1][0][1] - $match[0][1]), '/');
-                            }
-                        } // We have no following parameters: return the whole lot
-
-                        return isset($match[0][0]) && $match[0][1] != -1 ? trim($match[0][0], '/') : null;
-                    }, $matches, array_keys($matches));
-
-                    $this->invoke($routeCallable);
-
-                    $numHandled++;
-                }
-            }
-        }
-        if(($numHandled == 0) && (isset($this->notFoundCallback['/']))) {
-            $this->invoke($this->notFoundCallback['/']);
-        } elseif($numHandled == 0) {
-            header($_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found');
+        header($_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found');
+        if($this->notFoundCallback) {
+            $this->invoke($this->notFoundCallback);
         }
     }
 
@@ -455,7 +405,7 @@ class Router
 
         $separator = '';
         foreach($this->methodSeparatorList as $separatorChar) {
-            if(stripos($fn, $separator) !== false) {
+            if(stripos($fn, $separatorChar) !== false) {
                 $separator = $separatorChar;
                 break;
             }
@@ -530,7 +480,7 @@ class Router
      */
     public function getRouteList() : array
     {
-        return $this->afterRoutes;
+        return $this->routeList;
     }
 
     /**
