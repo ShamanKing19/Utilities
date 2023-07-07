@@ -277,7 +277,29 @@ function collapse(array $array) : array
 }
 
 /**
- * Рекурсивно заменяет ключи массива
+ * Рекурсивно заменяет ключи массива (заменённый ключ будет добавлен в конец массива)
+ *
+ * @param array $array Массив, в котором нужно заменить ключи
+ * @param array $replacementList Массив, где ключ - старый ключ, значение - новый ключ ($oldKey => $newKey)
+ *
+ * @return void
+ */
+function replaceKeysSimple(array &$array, array $replacementList) : void
+{
+    foreach($array as $oldKey => &$value) {
+        if(array_key_exists($oldKey, $replacementList) && isset($replacementList[$oldKey])) {
+            $newKey = $replacementList[$oldKey];
+            $array[$newKey] = $value;
+            unset($array[$oldKey]);
+        }
+        if(is_array($value)) {
+            replaceKeys($value, $replacementList);
+        }
+    }
+}
+
+/**
+ * Рекурсивно заменяет ключи массива (сохраняет порядок ключей)
  *
  * @param array $array Массив, в котором нужно заменить ключи
  * @param array $replacementList Массив, где ключ - старый ключ, значение - новый ключ ($oldKey => $newKey)
@@ -286,15 +308,19 @@ function collapse(array $array) : array
  */
 function replaceKeys(array &$array, array $replacementList) : void
 {
-    foreach($replacementList as $oldKey => $newKey) {
-        foreach($array as $key => &$value) {
-            if($key === $oldKey) {
-                $array[$newKey] = $value;
-                unset($array[$oldKey]);
-            }
-            if(is_array($value)) {
-                replaceKeys($value, $replacementList);
-            }
+    $keys = array_keys($array);
+    $values = array_values($array);
+    foreach($keys as $index => $oldKey) {
+        if(array_key_exists($oldKey, $replacementList) && isset($replacementList[$oldKey])) {
+            $newKey = $replacementList[$oldKey];
+            array_splice($keys, $index, 1, [$newKey]);
+            $array = array_combine($keys, $values);
+        }
+    }
+
+    foreach($array as &$item) {
+        if(is_array($item)) {
+            self::replaceKeys($item, $replacementList);
         }
     }
 }
