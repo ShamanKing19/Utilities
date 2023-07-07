@@ -275,3 +275,26 @@ function collapse(array $array) : array
 {
     return array_merge([], ...$array);
 }
+
+/**
+ * Рекурсивно заменяет ключи массива
+ *
+ * @param array $array Массив, в котором нужно заменить ключи
+ * @param array $replacementList Массив, где ключ - старый ключ, значение - новый ключ ($oldKey => $newKey)
+ *
+ * @return void
+ */
+function replaceKeys(array &$array, array $replacementList) : void
+{
+    foreach($replacementList as $oldKey => $newKey) {
+        foreach($array as $key => &$value) {
+            if($key === $oldKey) {
+                $array[$newKey] = $value;
+                unset($array[$oldKey]);
+            }
+            if(is_array($value)) {
+                replaceKeys($value, $replacementList);
+            }
+        }
+    }
+}
