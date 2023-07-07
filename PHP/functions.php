@@ -5,30 +5,31 @@
  *
  * @param $data
  */
-function pprint(...$data) {
+function pprint(...$data)  : void
+{
+    $data = is_array($data) ? $data : [$data];
     $whereLine = false;
     $debug = debug_backtrace();
     foreach($data as $dt) {
-
-    if(!empty($debug) && is_array($debug)) {
-        $file = str_replace($_SERVER['DOCUMENT_ROOT'], '', $debug[0]['file']);
-        $whereLine = "\n\n".$file.' (строка: '.$debug[0]['line'].')';
-    }
-    ?>
-    <pre
-            style="
-        max-height: 500px;
-        overflow-y: auto;
-        font-size: 14px;
-        max-width: 700px;
-        padding: 10px;
-        overflow-x: auto;
-        font-family: Consolas, monospace;
-        background: lightgoldenrodyellow;
-        text-align: left !important;
-        "
-    ><?=htmlspecialchars(print_r($dt, true));?><?=$whereLine;?></pre>
-    <?php
+        if(!empty($debug) && is_array($debug)) {
+            $file = str_replace($_SERVER['DOCUMENT_ROOT'], '', $debug[0]['file']);
+            $whereLine = "\n\n".$file.' (строка: '.$debug[0]['line'].')';
+        }
+        ?>
+        <pre
+                style="
+            max-height: 500px;
+            overflow-y: auto;
+            font-size: 14px;
+            max-width: 700px;
+            padding: 10px;
+            overflow-x: auto;
+            font-family: Consolas, monospace;
+            background: lightgoldenrodyellow;
+            text-align: left !important;
+            "
+        ><?=htmlspecialchars(print_r($dt, true));?><?=$whereLine;?></pre>
+        <?php
     }
 }
 
@@ -39,7 +40,7 @@ function pprint(...$data) {
  * @param bool $slashAtEnd
  * @return string
  */
-function getCurrentDomain(bool $slashAtEnd = false): string
+function getCurrentDomain(bool $slashAtEnd = false) : string
 {
     $protocol = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] != 'off') ||
         $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
@@ -56,7 +57,8 @@ function getCurrentDomain(bool $slashAtEnd = false): string
  * @param string $needle
  * @return bool
  */
-function startsWith(string $haystack, string $needle): bool {
+function startsWith(string $haystack, string $needle) : bool 
+{
     $length = strlen($needle);
 
     return substr($haystack,0, $length) === $needle;
@@ -69,7 +71,8 @@ function startsWith(string $haystack, string $needle): bool {
  * @param string $needle
  * @return bool
  */
-function endsWith(string $haystack, string $needle): bool {
+function endsWith(string $haystack, string $needle) : bool 
+{
     $length = strlen($needle);
     if(!$length) { return true; }
 
@@ -82,7 +85,7 @@ function endsWith(string $haystack, string $needle): bool {
  * @param array $filesArray элемент глобального массива $_FILES
  * @return array массив с элементами имеющими структуру $_FILES[$elem]
  */
-function splitFilesList(array $filesArray): array
+function splitFilesList(array $filesArray) : array
 {
     $prettyFilesList = [];
     if(!is_array($filesArray["tmp_name"])) {
@@ -140,7 +143,7 @@ function declinateWord(int $number, string $nominativeMessage, string $genitiveM
  * @param bool $savePlus Сохранять ли плюс в номере
  * @return array|string|null
  */
-function cleanPhoneString(string $phone, bool $savePlus = false): string
+function cleanPhoneString(string $phone, bool $savePlus = false) : string
 {
     $plus = false;
     if($savePlus) {
@@ -160,7 +163,7 @@ function cleanPhoneString(string $phone, bool $savePlus = false): string
  * @param int $round        точность округления
  * @return string           размер файла в формате
  */
-function getStrFileSize(int $size, int $round = 2): string
+function getStrFileSize(int $size, int $round = 2) : string
 {
     $sizes = ['Б', 'Кб', 'Мб', 'Гб', 'Тб'];
     for ($i=0; $size > 1024 && $i < count($sizes) - 1; $i++) {
@@ -181,7 +184,7 @@ function getStrFileSize(int $size, int $round = 2): string
  * @param string $rowDelimiter Разделитель строк
  * @return false|string
  */
-function writeCSV(array $data, string $path, bool $header = false, $columnDelimiter = ';', $rowDelimiter = "\r\n")
+function writeCSV(array $data, string $path, bool $header = false, $columnDelimiter = ';', $rowDelimiter = "\r\n") : void
 {
     $stringToCSV = '';
 
@@ -260,6 +263,15 @@ function cleanArray(array $array, array $keysToRemove = [], array $valuesToKeep 
  * @param array $array
  * @return false|string
  */
-function toJson(array $array) {
+function toJson(array $array) : string
+{
     return json_encode($array, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * Схлопывание вложенных массивов в один
+ */
+function collapse(array $array) : array
+{
+    return array_merge([], ...$array);
 }

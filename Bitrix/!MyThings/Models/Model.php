@@ -1,8 +1,22 @@
 <?php
 namespace App\Api\Models;
 
-use App\Tool\Log;
-
+/**
+ * Модель для таблицы, потомка \Bitrix\Main\Entity\DataManager
+ * <pre>
+ * 1. Для работы нужно унаследоваться и объявить:
+ *    public static string $table = SomeTable::class;
+ * 2. Для работы кэширования нужно объявить, например:
+ *    protected static string $moduleName = 'iblock';
+ *    protected static bool $saveItemsCache = true;
+ *    
+ *    Для очистки кэша нужно объявить массив с событиями, по которым он будет очищаться:
+ *    protected static array $clearCacheEventList = ['OnAfterIblockElementAdd', 'OnAfterIblockElementUpdate', ...];
+ *    
+ *    И в init.php вызывать метод:
+ *    static::registerCacheEvents();
+ * </pre>
+ */
 abstract class Model implements \ArrayAccess
 {
     /**
@@ -23,19 +37,6 @@ abstract class Model implements \ArrayAccess
     protected static array $defaultSelect = ['*', 'UF_*'];
 
     /**
-     * Свойства
-     */
-
-    /* @var array<static> Массив с уже созданными объектами */
-    protected static array $instanceList = [];
-
-    /* @var int $id Элемента таблицы */
-    protected int $id;
-
-    /* @var array Список полей элемента */
-    protected array $fields;
-
-    /**
      * Кэширование
      */
 
@@ -50,6 +51,19 @@ abstract class Model implements \ArrayAccess
 
     /* @var array Список событий, по которым будет очищаться кэш */
     protected static array $clearCacheEventList = [];
+
+    /**
+     * Свойства
+     */
+
+    /* @var array<static> Массив с уже созданными объектами */
+    protected static array $instanceList = [];
+
+    /* @var int $id Элемента таблицы */
+    protected int $id;
+
+    /* @var array Список полей элемента */
+    protected array $fields;
 
 
     protected function __construct(int $id, array $fields)
@@ -85,10 +99,10 @@ abstract class Model implements \ArrayAccess
      *
      * @return mixed|null
      */
-    public function getField(string $key)
+    public function getField(string $key) : mixed
     {
         if(!array_key_exists($key, $this->fields) || is_null($this->fields[$key])) {
-            return;
+            return null;
         }
 
         return $this->fields[$key];
@@ -102,7 +116,7 @@ abstract class Model implements \ArrayAccess
      *
      * @return static
      */
-    public function setField(string $key, string $value) // : static // для PHP8
+    public function setField(string $key, string $value) : static
     {
         $this->fields[$key] = $value;
         return $this;
@@ -138,7 +152,7 @@ abstract class Model implements \ArrayAccess
      *
      * @return static|false
      */
-    final public static function find(int $id)// : static // для PHP8
+    final public static function find(int $id) : static|false
     {
         return static::$instanceList[$id] ?? static::findBy('ID', $id);
     }
@@ -151,7 +165,7 @@ abstract class Model implements \ArrayAccess
      *
      * @return static|false
      */
-    final public static function findBy(string $key, $value)// : static // для PHP8
+    final public static function findBy(string $key, $value) : static|false
     {
         return current(static::getItems([$key => $value])) ?? false;
     }
@@ -251,7 +265,7 @@ abstract class Model implements \ArrayAccess
      *
      * @return static|false
      */
-    final public static function create(array $fields)// : static|false // для PHP8
+    final public static function create(array $fields) : static|false
     {
         $result = static::$table::add($fields);
         $itemId = $result->getId();
@@ -291,7 +305,6 @@ abstract class Model implements \ArrayAccess
                 } elseif(is_array($data)) {
                     $elementId = (int)$data['ID'];
                 } else {
-                    Log::open('zxc_'.$event)->write($data);
                     return;
                 }
 
