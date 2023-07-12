@@ -124,9 +124,9 @@ function splitFilesList(array $filesArray) : array
 function declinateWord(int $number, string $nominativeMessage, string $genitiveMessage, string $accusativeMessage) : string
 {
     $exceptions = range(11, 20);
-    if ($number % 10 == 1 && !in_array($number % 100, $exceptions)) {
+    if($number % 10 == 1 && !in_array($number % 100, $exceptions)) {
         $word = $nominativeMessage;
-    } elseif ($number % 10 > 1 && $number % 10 < 5 && !in_array($number % 100, $exceptions)) {
+    } elseif($number % 10 > 1 && $number % 10 < 5 && !in_array($number % 100, $exceptions)) {
         $word = $genitiveMessage;
     } else {
         $word = $accusativeMessage;
@@ -163,7 +163,7 @@ function cleanPhoneString(string $phone, bool $savePlus = false) : string
  * @param int $round        точность округления
  * @return string           размер файла в формате
  */
-function getStrFileSize(int $size, int $round = 2) : string
+function getFileSizeFormatted(int $size, int $round = 2) : string
 {
     $sizes = ['Б', 'Кб', 'Мб', 'Гб', 'Тб'];
     for ($i=0; $size > 1024 && $i < count($sizes) - 1; $i++) {
@@ -171,6 +171,35 @@ function getStrFileSize(int $size, int $round = 2) : string
     }
 
     return round($size,$round)." ".$sizes[$i];
+}
+
+/**
+ * Преобразование количества секунд к строке вида: "2 часа 1 минута 35 секунд"
+ *
+ * @param int $sumSeconds
+ *
+ * @return string
+ */
+function formatTime(int $sumSeconds) : string
+{
+    if($sumSeconds === 0) {
+        return '0 сек.';
+    }
+
+    $seconds = $sumSeconds % 60;
+    $minutes = (floor($sumSeconds) / 60) % 60;
+    $hours = floor($sumSeconds / 60 / 60) % 60;
+    $formattedString = '';
+    if($hours > 0) {
+        $formattedString .= $hours . ' ч. ';
+    }
+    if($minutes > 0) {
+        $formattedString .= $minutes . ' мин. ';
+    }
+    if($seconds > 0) {
+        $formattedString .= $seconds . ' сек.';
+    }
+    return $formattedString;
 }
 
 
@@ -182,13 +211,12 @@ function getStrFileSize(int $size, int $round = 2) : string
  * @param bool $header Нужно ли выводить шапку (берёт ключи из первого элемента)
  * @param string $columnDelimiter Разделитель колонок
  * @param string $rowDelimiter Разделитель строк
- * @return false|string
+ * @return bool
  */
-function writeCSV(array $data, string $path, bool $header = false, $columnDelimiter = ';', $rowDelimiter = "\r\n") : void
+function writeCSV(array $data, string $path, bool $header = false, $columnDelimiter = ';', $rowDelimiter = "\r\n") : bool
 {
     $stringToCSV = '';
-
-    if ($header) {
+    if($header) {
         $header = array_keys(current($data));
         $stringToCSV .= implode($columnDelimiter, $header) . $rowDelimiter;
     }
@@ -198,11 +226,11 @@ function writeCSV(array $data, string $path, bool $header = false, $columnDelimi
 
         foreach ($row as $columnValue)
         {
-            if ($columnValue && preg_match('/[",;\r\n]/', $columnValue))
+            if($columnValue && preg_match('/[",;\r\n]/', $columnValue))
             {
-                if ($rowDelimiter === "\r\n") {
+                if($rowDelimiter === "\r\n") {
                     $columnValue = str_replace(["\r\n", "\r"], ['\n', ''], $columnValue);
-                } elseif ($rowDelimiter === "\n") {
+                } elseif($rowDelimiter === "\n") {
                     $columnValue = str_replace(["\n", "\r\r"], '\r', $columnValue);
                 }
 
@@ -217,16 +245,13 @@ function writeCSV(array $data, string $path, bool $header = false, $columnDelimi
     }
 
     $stringToCSV = rtrim($stringToCSV, $rowDelimiter);
-
-    if ($path) {
+    if($path) {
         $stringToCSV = iconv("UTF-8", "cp1251",  $stringToCSV);
-
         $done = file_put_contents($path, $stringToCSV);
-
-        return $done ? $stringToCSV : false;
+        return $done;
     }
 
-    return $stringToCSV;
+    return false;
 }
 
 
