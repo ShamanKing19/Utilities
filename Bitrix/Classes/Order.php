@@ -1,34 +1,139 @@
 <?php
 namespace App;
 
-
 class Order
 {
     private \Bitrix\Sale\Order $order;
 
+    /** @var array Поля заказа в виде массива */
+    private array $fields;
 
-    public function __construct(int $orderId) 
+    /** @var array Свойства заказа */
+    private array $props;
+
+    /** @var array Массив со всеми созданными объектами заказа */
+    private static array $instanceList = [];
+
+
+    private function __construct(\Bitrix\Sale\Order $order)
     {
-        $this->order = self::getById($orderId);
+        $this->order = $order;
+        $this->fields = $this->order->toArray();
+        $this->props = $this->fields['PROPERTIES'] ?? [];
     }
-
 
     /**
-     * @param $id id заказа
+     * Получение id заказа
+     *
+     * @return int
      */
-    public function getById(int $id) : \Bitrix\Sale\Order
+    public function getId() : int
     {
-        return \Bitrix\Sale\Order::load($id);
+        return $this->fields['ID'];
     }
 
+    /**
+     * Получение номера заказа
+     *
+     * @return string
+     */
+    public function getNumber() : string
+    {
+        return $this->fields['ACCOUNT_NUMBER'];
+    }
+
+    /**
+     * Приведение к массиву
+     *
+     * @return array
+     */
+    public function toArray() : array
+    {
+        return $this->fields;
+    }
+
+    /**
+     * Получение свойств заказа
+     *
+     * @return array
+     */
+    public function getProperties() : array
+    {
+        return $this->props;
+    }
+
+    /**
+     * Получение стоимости заказа
+     *
+     * @return float
+     */
+    public function getPrice() : float
+    {
+        return (float)$this->fields['PRICE'];
+    }
+
+    /**
+     * Получение стоимости доставки
+     *
+     * @return float
+     */
+    public function getDeliveryPrice() : float
+    {
+        return (float)$this->fields['PRICE_DELIVERY'];
+    }
+
+    /**
+     * Проверка: оплачен ли заказ
+     *
+     * @return bool
+     */
+    public function isPayed() : bool
+    {
+        return $this->fields['PAYED'] === 'Y';
+    }
+
+    /**
+     * Проверка: отменён ли заказ
+     *
+     * @return bool
+     */
+    public function isCancelled() : bool
+    {
+        return $this->fields['CANCELED'] === 'Y';
+    }
+
+    /**
+     * Получение информации о статусе заказа
+     *
+     * @return array
+     */
+    public function getStatus() : array
+    {
+        $statusId = $this->fields['STATUS_ID'];
+        return self::getStatusList(['ID' => $statusId])[$statusId] ?? [];
+    }
+
+    /**
+     * Получение информации о покупателе
+     *
+     * @return array
+     */
+    public function getUser() : array
+    {
+        $userId = $this->fields['USER_ID'];
+        $user = \Bitrix\Main\UserTable::getList(['filter' => ['ID' => $userId], 'select' => ['*', 'UF_*']])->fetch();
+        return $user ?? [];
+    }
 
     /**
      * Формирование ссылки на оплату
+     *
      * @return string
      */
     public function getPaymentUrl() : string
     {
         $paymentCollection = $this->order->getPaymentCollection();
+        /* @var \Bitrix\Sale\Payment $payment */
         $payment = $paymentCollection[0];
         if(empty($payment)) {
             return '';
@@ -41,9 +146,30 @@ class Order
         return $paymentUrl ?: '';
     }
 
+    /**
+     * Поиск объекта заказа
+     *
+     * @param int $id id заказа
+     *
+     * @return self|false
+     */
+    public static function find(int $id) : self|false
+    {
+        if(empty(self::$instanceList[$id])) {
+            $order = \Bitrix\Sale\Order::load($id);
+            if(is_null($order)) {
+                return false;
+            }
+
+            self::$instanceList[$id] = new self($order);
+        }
+
+        return self::$instanceList[$id];
+    }
 
     /**
      * Получение доступных платёжных систем
+     *
      * @return array
      */
     public static function getPaySystemList()
@@ -60,9 +186,9 @@ class Order
         return $paySystems;
     }
 
-
     /**
      * Получение количества активных заказов текущего пользователя
+     *
      * @return int
      */
     public static function getActiveCount() : int
@@ -70,12 +196,12 @@ class Order
         return count(self::getActiveList([], ['ID']));
     }
 
-
     /**
      * Получение активных заказов текущего пользователя
      *
      * @param array $filter
      * @param array|string[] $select
+     *
      * @return array
      */
     public static function getActiveList(array $filter = [], array $select = ['*']) : array
@@ -85,12 +211,12 @@ class Order
         return self::getList($filter, $select);
     }
 
-
     /**
      * Получение списка заказов текущего пользователя
      *
      * @param array $filter
      * @param array|string[] $select
+     *
      * @return array
      */
     public static function getList(array $filter = [], array $select = ['*']) : array
@@ -116,25 +242,32 @@ class Order
         return $orders;
     }
 
-
     /**
      * Получение статусов заказов
      *
      * @param array $excludeIds id заказов, которые нужно исключить
+     *
      * @return array
      */
-    public static function getStatusList(array $excludeIds = []) : array
+    public static function getStatusList(array $filter = [], array $excludeIds = []) : array
     {
+        $defaultFilter = [
+            'LANG.LID' => strtoupper(\Bitrix\Main\Application::getInstance()->getContext()->getLanguage()),
+            [
+                'LOGIC' => 'OR',
+                '=TYPE' => 'O',
+                '!ID' => $excludeIds
+            ]
+        ];
+        if($filter) {
+            foreach($filter as $key => $value) {
+                $defaultFilter[$key] = $value;
+            }
+        }
+
         $statusRequest = \Bitrix\Sale\Internals\StatusTable::getList([
             'order' => ['SORT'=>'ASC'],
-            'filter' => [
-                'LANG.LID' => getCurrentLanguage(),
-                [
-                    'LOGIC' => 'OR',
-                    '=TYPE' => 'O',
-                    '!ID' => $excludeIds
-                ]
-            ],
+            'filter' => $defaultFilter,
             'select' => ['*', 'STATUS_ID' => 'LANG.STATUS_ID', 'LID' => 'LANG.LID', 'NAME' => 'LANG.NAME', 'DESCRIPTION' => 'LANG.DESCRIPTION'],
             'runtime' => [
                 new \Bitrix\Main\ORM\Fields\Relations\Reference(
@@ -153,11 +286,11 @@ class Order
         return $statuses;
     }
 
-
     /**
      * Получение свойств заказа из таблицы
      *
      * @param int $orderId id заказа
+     *
      * @return array
      */
     public static function getOrderPropertyList(int $orderId) : array
@@ -173,72 +306,6 @@ class Order
     }
 
     /**
-     * Создание заказа
-     * 
-     * @param int $personTypeId id типа покупателя (1 - физ. лицо, 2 - юр. лицо)
-     * @param string $name Имя покупателя
-     * @param string $phone Номер телфона
-     * @param string $email Почта покупателя
-     * @param string $comment Комментарий к заказу
-     * @param array $products Массив с id товара и его количеством [$id => $quantity] 
-     * @return array Результат добавления
-     */
-    public static function create(
-        int $personTypeId,
-        string $name,
-        string $phone,
-        string $email,
-        string $comment,
-        array $products,
-        int $storeId,
-
-    ) {
-        $basket = \Bitrix\Sale\Basket::create(SITE_ID);
-        $productList = $this->getProductsInfo($products);
-
-        foreach($products as $productId => $quantity)
-        {
-            $productFields = [
-                'PRODUCT_ID' => $productId,
-                'QUANTITY' => $quantity,
-                'NAME' => $productList[$productId]['NAME'],
-                'PRICE' => $productList[$productId]['PRICE']['DISCOUNT_PRICE'],
-                'PRODUCT_PROVIDER_CLASS' => '\Bitrix\Catalog\Product\CatalogProvider',
-            ];
-
-            $item = $basket->createItem("catalog", $productId);
-            $item->setFields($productFields);
-        }
-
-        global $USER;
-        $order = Bitrix\Sale\Order::create(SITE_ID, $USER->GetID());
-        $order->setBasket($basket);
-        $order->setPersonTypeId($personTypeId);
-        $order->setField('USER_DESCRIPTION', $comment);
-
-        $propertyCollection = $order->getPropertyCollection();
-        $arProperties = $propertyCollection->getArray();
-
-        // ! Названия кастомный свойств заказаы 
-        $propertyValues = [
-            'F_STORE' => $storeId,
-            'F_EMAIL' => $email,
-            'F_PHONE' => $phone,
-            'F_FIO' => $name
-        ];
-
-        foreach($arProperties['properties'] as $property) {
-            $prop = $propertyCollection->getItemByOrderPropertyId($property['ID']);
-            $propCode = $prop->getField('CODE');
-            $propValue = $propertyValues[$propCode];
-            $prop->setValue($propValue);
-        }
-
-        return $$order->save();
-    }
-
-
-    /**
      * Получение типов доставки
      */
     public static function getShipmentTypes() : array
@@ -246,10 +313,12 @@ class Order
         return \Bitrix\Sale\Delivery\Services\Manager::getActiveList();
     }
 
-
     /**
      * Получение оплат для заказов
-     * @param $orderIdList список id заказов
+     *
+     * @param array $orderIdList список id заказов
+     *
+     * @return array
      */
     public static function getPayments(array $orderIdList) : array
     {
@@ -270,7 +339,8 @@ class Order
 
     /**
      * Получение информации о свойстве корзины по символьному коду
-     * @param $code символьный код свойства заказа
+     *
+     * @param string $code символьный код свойства заказа
      */
     public static function getOrderPropertyInfo(string $code) : array
     {
