@@ -105,7 +105,6 @@ abstract class IblockModel implements \ArrayAccess
 
                 $instance = new static($id, $item, $props);
                 static::$instanceList[$id] = $instance;
-                echo 'from cache !!!';
                 return $instance;
             }
         }
@@ -117,7 +116,7 @@ abstract class IblockModel implements \ArrayAccess
 
         static::saveToCache($item);
         static::$instanceList[$id] = $item;
-        echo 'no cache :((((';
+        
         return $item;
     }
 
