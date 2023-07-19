@@ -3,11 +3,12 @@ namespace App\Models;
 
 /**
  * Модель для таблицы, потомка \Bitrix\Main\Entity\DataManager
+ * TODO: 1. Пофиксить кэширование 2. Доделать супер-пупер join'ы 3. "Показать ещё" с js и шлюхами
  * <ol>
  *     <li>Для работы нужно унаследоваться и объявить: <p><b>public static string $table = SomeTable::class</b></p></li>
  *     <li>Для работы кэширования нужно объявить, например:
  *          <p><b>protected static string $moduleName = 'iblock'</b></p>
- *          <p><b>protected static bool $saveItemsCache = true</b></p>
+ *          <p><b>protected static bool $useCache = true</b></p>
  *     <li>Для очистки кэша нужно объявить массив с событиями, по которым он будет очищаться:
  *          <p><b>protected static array $clearCacheEventList = ['OnAfterCrmDealAdd', 'AfterCrmLeadUpdate', ...]</b></p>
  *     </li>
@@ -29,14 +30,20 @@ abstract class D7TableModel implements \ArrayAccess
      * Настраиваемые поля
      */
 
-    /* @var array Дополнительные поля для фильтра в getListRaw (Можно установить с помощью метода static::setDefaultFilter()) */
-    protected static array $defaultFilter = [];
+    /* @var array Дополнительные поля для фильтра в getListRaw (Можно установить с помощью метода static::setFilter()) */
+    protected static array $filter = [];
 
     /* @var array Стандартные поля, которые нужно выбирать в getListRaw */
-    protected static array $defaultSelect = ['*', 'UF_*'];
+    protected static array $select = ['*', 'UF_*'];
 
     /** @var array|string[] Стандартная сортировка */
-    protected static array $defaultOrder = ['ID' => 'ASC'];
+    protected static array $order = ['ID' => 'ASC'];
+
+    /** @var array Join'ы к таблице */
+    protected static array $runtime = [];
+
+    /** @var array Массив с информацией о JOIN'ах */
+    protected static array $joinList = [];
 
     /**
      * Кэширование
@@ -46,7 +53,7 @@ abstract class D7TableModel implements \ArrayAccess
     protected static string $moduleName = '';
 
     /* @var bool Сохранять ли в кэш поля объектов */
-    protected static bool $saveItemsCache = false;
+    protected static bool $useCache = false;
 
     /* @var int Время кэширования для одиночных элементов */
     protected static int $cacheTime = 86400;
@@ -57,7 +64,6 @@ abstract class D7TableModel implements \ArrayAccess
     /**
      * Пагинация
      */
-
 
     /** @var string Переменная, которая будет искаться в запросе для определения текущей страницы */
     protected static string $pageVariable = 'page';
@@ -70,6 +76,17 @@ abstract class D7TableModel implements \ArrayAccess
 
     /** @var int Количество элементов на странице */
     protected static int $itemsPerPage = 10;
+
+    // TODO: Показать ещё
+
+    /** @var string Класс для кнопки "Показать ещё" */
+    protected static string $showMoreButtonClass = 'js-show-more--button';
+
+    /** @var string Класс для контейнера с элементами */
+    protected static string $showMoreWrapperClass = 'js-show-more--wrapper';
+
+    /** @var string Класс для элемента */
+    protected static string $showMoreItemClass = 'js-show-more--item';
 
     /**
      * Свойства
@@ -209,7 +226,7 @@ abstract class D7TableModel implements \ArrayAccess
      */
     final public static function getList(array $filter = [], array $order = [], int $limit = 0, int $offset = 0) : array
     {
-        if(!static::$saveItemsCache) {
+        if(!static::$useCache) {
             return static::getListRaw($filter, $order, $limit, $offset);
         }
 
@@ -225,6 +242,7 @@ abstract class D7TableModel implements \ArrayAccess
 
         if($cache->initCache(static::$cacheTime, $cacheKey, $cachePath)) {
             $items = $cache->getVars();
+            $cache->abortDataCache();
             return static::makeInstanceList($items);
         }
 
@@ -250,22 +268,27 @@ abstract class D7TableModel implements \ArrayAccess
      */
     public static function getListRaw(array $filter = [], array $order = [], int $limit = 0, int $offset = 0) : array
     {
-        foreach(static::$defaultFilter as $key => $value) {
+        foreach(static::$filter as $key => $value) {
             if(!isset($filter[$key])) {
                 $filter[$key] = $value;
             }
         }
 
-        foreach(static::$defaultOrder as $key => $value) {
+        foreach(static::$order as $key => $value) {
             if(!isset($order[$key])) {
                 $order[$key] = $value;
             }
         }
 
+        foreach(static::$joinList as $join) {
+            static::$select[$join['COLUMN'] . '_'] = $join['COLUMN'] . '.*';
+        }
+
         $params = [
             'filter' => $filter,
-            'select' => static::$defaultSelect,
-            'order' => $order
+            'select' => static::$select,
+            'order' => $order,
+            'runtime' => static::$runtime
         ];
 
         if($limit > 0) {
@@ -284,9 +307,38 @@ abstract class D7TableModel implements \ArrayAccess
      *
      * @param array $filter Фильтр для таблицы
      */
-    public static function setDefaultFilter(array $filter) : void
+    public static function setFilter(array $filter) : void
     {
-        static::$defaultFilter = $filter;
+        static::$filter = $filter;
+    }
+
+    /**
+     * Добавление JOIN'ов к запросам
+     *
+     * @param string $columnName Название Колонки
+     * @param string $tableClass Название класса таблицы
+     * @param string $localKey Ключ из этой таблицы, по которому будут присоединяться поля
+     * @param string $foreignKey Ключ таблицы, с которой производим JOIN
+     * @param string $joinType Тип JOIN'а (inner/left/right)
+     *
+     * @return void
+     */
+    public static function addJoin(string $columnName, string $tableClass, string $localKey, string $foreignKey, string $joinType = 'left') : void
+    {
+        static::$joinList[$columnName] = [
+            'COLUMN' => $columnName,
+            'TABLE' => $tableClass,
+            'LOCAL_KEY' => $localKey,
+            'FOREIGN_KEY' => $foreignKey,
+            'JOIN_TYPE' => $joinType
+        ];
+
+        static::$runtime[] = new \Bitrix\Main\ORM\Fields\Relations\Reference(
+            $columnName,
+            $tableClass,
+            \Bitrix\Main\ORM\Query\Join::on("this.$localKey", "ref.$foreignKey"),
+            ['join_type' => $joinType]
+        );
     }
 
     /**
@@ -354,22 +406,21 @@ abstract class D7TableModel implements \ArrayAccess
     public static function getPagination() : array
     {
         global $APPLICATION;
+        $currentPage = static::getCurrentPage();
         $currentUri = $APPLICATION->GetCurUri();
         $uri = new \Bitrix\Main\Web\Uri($currentUri);
-        
-        $currentPage = static::getCurrentPage();
-        $elementCount = static::getItemsCount();
-        $lastPageNumber = (int)ceil($elementCount / (static::$itemsPerPage ?: 1));
+        $itemsCount = static::getItemsCount();
+        $lastPageNumber = (int)ceil($itemsCount / (static::$itemsPerPage ?: 1));
 
         // Редирект на последнюю страницу, если текущая страница больше последней
-        if($currentPage > $lastPageNumber) {
+        if($currentPage > $lastPageNumber && $itemsCount > 0) {
             LocalRedirect($uri->addParams(['page' => $lastPageNumber])->getPathQuery());
         }
 
         $result = [
             'CURRENT_PAGE' => static::getCurrentPage(),
             'ITEMS_PER_PAGE' => static::$itemsPerPage,
-            'ITEMS_COUNT' => $elementCount,
+            'ITEMS_COUNT' => $itemsCount,
             'FIRST_PAGE' => [
                 'IS_CURRENT' => $currentPage === 1,
                 'NUMBER' => 1,
@@ -452,7 +503,7 @@ abstract class D7TableModel implements \ArrayAccess
      */
     public static function getItemsCount() : int
     {
-        return static::$table::getCount(static::$defaultFilter);
+        return static::$table::getCount(static::$filter);
     }
 
     /**
@@ -467,11 +518,13 @@ abstract class D7TableModel implements \ArrayAccess
         return $pageNumber > 0 ? $pageNumber : 1;
     }
 
+
     /**
      *
      * Кэширование
      *
      */
+
 
     /**
      * Регистрация событий очистки кэша
@@ -517,7 +570,7 @@ abstract class D7TableModel implements \ArrayAccess
      */
     protected static function getCachePath() : string
     {
-        return static::$table::getTableName() . '_items_cache';
+        return static::$table::getTableName() . '_model_item_cache';
     }
 
     /**
@@ -527,7 +580,7 @@ abstract class D7TableModel implements \ArrayAccess
      */
     protected static function getCachePathForItemsList() : string
     {
-        return static::$table::getTableName() . '_items_list_cache';
+        return static::$table::getTableName() . '_model_list_cache';
     }
 
     /**
