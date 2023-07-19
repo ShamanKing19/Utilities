@@ -364,23 +364,23 @@ abstract class Model implements \ArrayAccess
      * Реализация интерфейса ArrayAccess
      */
 
-    public function offsetSet($key, $value) {
-        if(is_null($key)) {
+    public function offsetSet($offset, $value) {
+        if(is_null($offset)) {
             $this->fields[] = $value;
         } else {
-            $this->fields[$key] = $value;
+            $this->fields[$offset] = $value;
         }
     }
 
-    public function offsetExists($key) {
-        return isset($this->fields[$key]);
+    public function offsetExists($offset) {
+        return isset($this->fields[$offset]);
     }
 
-    public function offsetUnset($key) {
-        unset($this->fields[$key]);
+    public function offsetUnset($offset) {
+        unset($this->fields[$offset]);
     }
 
-    public function offsetGet($key) {
-        return $this->fields[$key] ?? null;
+    public function offsetGet($offset) {
+        return $this->fields[$offset] ?? null;
     }
 }
