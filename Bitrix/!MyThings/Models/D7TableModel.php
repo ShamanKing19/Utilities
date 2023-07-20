@@ -3,9 +3,14 @@ namespace App\Models;
 
 /**
  * Модель для таблицы, потомка \Bitrix\Main\Entity\DataManager
- * TODO: 1. Пофиксить кэширование 2. Доделать супер-пупер join'ы 3. "Показать ещё" с js и шлюхами
  * <ol>
  *     <li>Для работы нужно унаследоваться и объявить: <p><b>public static string $table = SomeTable::class</b></p></li>
+ *     <li>Если нужно установить "высчитываемый" фильтр, например по id пользователя, то можно вызвать один раз в init.php
+ *          <p><b>static::setFilter(['USER_ID' => $USER->getId()])</b></p>
+ *     </li>
+ *     <li>Можно добавить JOIN (пока что только 1:1) методом
+ *          <p><b>static::addJoin()</b></p>
+ *     </li>
  *     <li>Для работы кэширования нужно объявить, например:
  *          <p><b>protected static string $moduleName = 'iblock'</b></p>
  *          <p><b>protected static bool $useCache = true</b></p>
@@ -16,6 +21,29 @@ namespace App\Models;
  *          <p><b>static::registerCacheEvents()</b></p>
  *     </li>
  * </ol>
+ *
+ * <h2>Пагинация</h2>
+ * <h3>I. Постраничная</h3>
+ * <ol>
+ *     <li>Вызываем метод: <p><b>static::getPagination()</b></p></li>
+ *     <li>Натягиваем на вёрстку</li>
+ * </ol>
+ *
+ * <h3>II. "Показать ещё"</h3>
+ * <ol>
+ *     <li>Натягиваем на вёрстку классы:
+ *         <p><b>static::$showMoreWrapperClass()</b></p>
+ *         <p><b>static::$showMoreItemClass()</b></p>
+ *         <p><b>static::$showMoreButtonClass()</b></p>
+ *     </li>
+ *     <li>На кнопку добавляем:
+ *         <p><b>data-\App\Models\Order::$pageVariable="$pagination['NEXT_PAGE']['NUMBER']"</b></p>
+ *     </li>
+ *     <li>Вызываем метод уже после вёрстки:
+ *         <p><b>static::initShowMoreButton()</b></p>
+ *     </li>
+ * </ol>
+ *
  */
 abstract class D7TableModel implements \ArrayAccess
 {
@@ -42,9 +70,6 @@ abstract class D7TableModel implements \ArrayAccess
     /** @var array Join'ы к таблице */
     protected static array $runtime = [];
 
-    /** @var array Массив с информацией о JOIN'ах */
-    protected static array $joinList = [];
-
     /**
      * Кэширование
      */
@@ -66,7 +91,7 @@ abstract class D7TableModel implements \ArrayAccess
      */
 
     /** @var string Переменная, которая будет искаться в запросе для определения текущей страницы */
-    protected static string $pageVariable = 'page';
+    public static string $pageVariable = 'page';
 
     /** @var int Количество страниц, отображаемых перед и после текущей */
     protected static int $pageRange = 4;
@@ -77,16 +102,14 @@ abstract class D7TableModel implements \ArrayAccess
     /** @var int Количество элементов на странице */
     protected static int $itemsPerPage = 10;
 
-    // TODO: Показать ещё
-
     /** @var string Класс для кнопки "Показать ещё" */
-    protected static string $showMoreButtonClass = 'js-show-more--button';
+    public static string $showMoreButtonClass = 'js-show-more--button';
 
     /** @var string Класс для контейнера с элементами */
-    protected static string $showMoreWrapperClass = 'js-show-more--wrapper';
+    public static string $showMoreWrapperClass = 'js-show-more--wrapper';
 
     /** @var string Класс для элемента */
-    protected static string $showMoreItemClass = 'js-show-more--item';
+    public static string $showMoreItemClass = 'js-show-more--item';
 
     /**
      * Свойства
@@ -280,8 +303,10 @@ abstract class D7TableModel implements \ArrayAccess
             }
         }
 
-        foreach(static::$joinList as $join) {
-            static::$select[$join['COLUMN'] . '_'] = $join['COLUMN'] . '.*';
+        /** @var \Bitrix\Main\ORM\Fields\Relations\Reference $join */
+        foreach(static::$runtime as $join) {
+            $columnName = $join->getName();
+            static::$select[$columnName] = $columnName . '.*';
         }
 
         $params = [
@@ -291,6 +316,10 @@ abstract class D7TableModel implements \ArrayAccess
             'runtime' => static::$runtime
         ];
 
+        /**
+         * TODO: С JOIN'ами 1:M И M:M работает неправильно, так что когда есть JOIN с join_type="left" или "right"
+         * лучше делать всю выборку, группировать её, а потом уже ограничивать array_splice($items, $offset, $limit)
+         */
         if($limit > 0) {
             $params['limit'] = $limit;
         }
@@ -298,22 +327,43 @@ abstract class D7TableModel implements \ArrayAccess
             $params['offset'] = $offset;
         }
 
-        $items = static::$table::getList($params)->fetchAll();
+        $request = static::$table::getList($params);
+        $items = [];
+        while($item = $request->fetch()) {
+            $items[$item['ID']] = $item;
+        }
+
+        // Группировка полей, полученных через runtime в массив и установка адекватных ключей
+        foreach(static::$runtime as $join) {
+            $columnName = $join->getName();
+            foreach($items as &$item) {
+                foreach($item as $key => $value) {
+                    if(strpos($key, $columnName) === false) {
+                        continue;
+                    }
+
+                    $pureKey = str_replace($columnName, '', $key);
+                    $item[$columnName][$pureKey] = $value;
+                    unset($item[$key]);
+                }
+            }
+        }
+
         return static::makeInstanceList($items);
     }
 
     /**
-     * Установка фильтра по-умолчанию
+     * Установка фильтра по-умолчанию (Вызывать один раз в init.php)
      *
      * @param array $filter Фильтр для таблицы
      */
-    public static function setFilter(array $filter) : void
+    final public static function setFilter(array $filter) : void
     {
         static::$filter = $filter;
     }
 
     /**
-     * Добавление JOIN'ов к запросам
+     * Добавление JOIN'ов к запросам (Работает корректно только со связью 1:1)
      *
      * @param string $columnName Название Колонки
      * @param string $tableClass Название класса таблицы
@@ -323,16 +373,8 @@ abstract class D7TableModel implements \ArrayAccess
      *
      * @return void
      */
-    public static function addJoin(string $columnName, string $tableClass, string $localKey, string $foreignKey, string $joinType = 'left') : void
+    final public static function addJoin(string $columnName, string $tableClass, string $localKey, string $foreignKey, string $joinType = 'inner') : void
     {
-        static::$joinList[$columnName] = [
-            'COLUMN' => $columnName,
-            'TABLE' => $tableClass,
-            'LOCAL_KEY' => $localKey,
-            'FOREIGN_KEY' => $foreignKey,
-            'JOIN_TYPE' => $joinType
-        ];
-
         static::$runtime[] = new \Bitrix\Main\ORM\Fields\Relations\Reference(
             $columnName,
             $tableClass,
@@ -399,18 +441,47 @@ abstract class D7TableModel implements \ArrayAccess
      */
 
     /**
+     * Инициализация js для функционала "Показать ещё"
+     *
+     * @return void
+     */
+    final public static function initShowMoreButton() : void
+    {
+        $currentPage = static::getCurrentPage();
+        $lastPage = static::getLastPage();
+        $buttonClass = static::$showMoreButtonClass;
+        $wrapperClass = static::$showMoreWrapperClass;
+        $itemClass = static::$showMoreItemClass;
+        $pageVariable = static::$pageVariable;
+
+        $script = "
+            <script>
+            const itemsList = new ItemsList($currentPage, $lastPage);
+            itemsList.initShowMoreButton(
+                '$wrapperClass',
+                '$itemClass',
+                '$buttonClass',
+                '$pageVariable',
+                '$pageVariable'
+            );
+            </script>
+        ";
+        echo $script;
+    }
+
+    /**
      * Формирование массива для пагинации
      *
      * @return array
      */
-    public static function getPagination() : array
+    final public static function getPagination() : array
     {
         global $APPLICATION;
         $currentPage = static::getCurrentPage();
+        $lastPageNumber = static::getLastPage();
         $currentUri = $APPLICATION->GetCurUri();
         $uri = new \Bitrix\Main\Web\Uri($currentUri);
         $itemsCount = static::getItemsCount();
-        $lastPageNumber = (int)ceil($itemsCount / (static::$itemsPerPage ?: 1));
 
         // Редирект на последнюю страницу, если текущая страница больше последней
         if($currentPage > $lastPageNumber && $itemsCount > 0) {
@@ -430,6 +501,11 @@ abstract class D7TableModel implements \ArrayAccess
                 'IS_CURRENT' => $currentPage === $lastPageNumber,
                 'NUMBER' => $lastPageNumber,
                 'URL' => $uri->addParams(['page' => $lastPageNumber])->getPathQuery()
+            ],
+            'SHOW_MORE' => [
+                'BUTTON_CLASS' => static::$showMoreButtonClass,
+                'WRAPPER_CLASS' => static::$showMoreWrapperClass,
+                'ITEM_CLASS' => static::$showMoreItemClass
             ],
             'ITEMS' => static::getPaginationItems($uri->getPath(), $lastPageNumber)
         ];
@@ -460,7 +536,7 @@ abstract class D7TableModel implements \ArrayAccess
      *
      * @return array
      */
-    protected static function getPaginationItems(string $basePath, int $lastPageNumber) : array
+    final protected static function getPaginationItems(string $basePath, int $lastPageNumber) : array
     {
         $uri = new \Bitrix\Main\Web\Uri($basePath);
         $page = static::getCurrentPage();
@@ -497,13 +573,18 @@ abstract class D7TableModel implements \ArrayAccess
 
     /**
      * Подсчёт количества элементов
-     * // TODO: Добавить фильтр
      *
      * @return int
      */
-    public static function getItemsCount() : int
+    final public static function getItemsCount(array $filter = []) : int
     {
-        return static::$table::getCount(static::$filter);
+        foreach(static::$filter as $key => $value) {
+            if(!isset($filter[$key])) {
+                $filter[$key] = $value;
+            }
+        }
+
+        return static::$table::getCount($filter);
     }
 
     /**
@@ -511,11 +592,21 @@ abstract class D7TableModel implements \ArrayAccess
      *
      * @return int
      */
-    protected static function getCurrentPage() : int
+    final public static function getCurrentPage() : int
     {
         $request = \Bitrix\Main\Context::getCurrent()->getRequest();
         $pageNumber = (int)$request->get(static::$pageVariable) ?: (int)$request->getPost(static::$pageVariable) ?: 1;
         return $pageNumber > 0 ? $pageNumber : 1;
+    }
+
+    /**
+     * Получение номера последней страницы
+     *
+     * @return int
+     */
+    final protected static function getLastPage() : int
+    {
+        return (int)ceil(static::getItemsCount() / (static::$itemsPerPage ?: 1));
     }
 
 
@@ -558,7 +649,7 @@ abstract class D7TableModel implements \ArrayAccess
      *
      * @return string
      */
-    protected static function getCacheId(array $filter, array $order = [], int $limit = 0, int $offset = 0) : string
+    final protected static function getCacheId(array $filter, array $order = [], int $limit = 0, int $offset = 0) : string
     {
         return static::$table::getTableName() . '_' . serialize($filter) . '_' . serialize($order) . '_' . $limit . '_' . $offset;
     }
@@ -624,3 +715,116 @@ abstract class D7TableModel implements \ArrayAccess
         return $this->fields[$offset] ?? null;
     }
 }
+
+?>
+<style>
+    .item-list__hidden {
+        display: none !important;
+    }
+</style>
+<script>
+    class ItemsList
+    {
+        hiddenClass = 'item-list__hidden';
+
+        /**
+         * @param {Number} currentPage Номер текущей страницы
+         * @param {Number} lastPage Номер последней страницы
+         */
+        constructor(currentPage, lastPage) {
+            this.currentPage = currentPage;
+            this.lastPage = lastPage;
+        }
+
+        /**
+         * Инициализация функционала кнопки "Показать ещё"
+         *
+         * @param wrapperClass Класс контейнера с элементами
+         * @param itemClass Класс элемента
+         * @param buttonClass Класс кнопки
+         * @param pageAttributeName Название data-атрибута, в котором хранится номер следующей страницы
+         * @param urlPageParamName Название переменной пагинации в ссылке
+         */
+        initShowMoreButton(wrapperClass, itemClass, buttonClass, pageAttributeName, urlPageParamName) {
+            const wrapper = document.querySelector(`.${wrapperClass}`);
+            if(!wrapper) {
+                console.error(`Не найден контейнер с классом "${wrapperClass}"`);
+                return;
+            }
+
+            // TODO: Находить ближайшую кнопку (если будет несколько компонентов на странице, оно сломается)
+            const button = document.querySelector(`.${buttonClass}`);
+            if(!button) {
+                console.error(`Не найдено кнопки с классом "${buttonClass}"`);
+                return;
+            }
+
+            const items = wrapper.querySelectorAll(`.${itemClass}`);
+            if(!items) {
+                console.error(`Не найдено элементов с классом "${itemClass}"`);
+                return;
+            }
+
+            button.addEventListener('click' ,async (e) => {
+                button.classList.add(this.hiddenClass);
+
+                const nextPage = Number(button.dataset[pageAttributeName]);
+                if(!nextPage) {
+                    console.error(`Атрибут "data-${pageAttributeName}" не найден`);
+                    return;
+                }
+
+                const url = new URL(location.href);
+                url.searchParams.set(urlPageParamName, nextPage.toString());
+                const response = await this.sendAjax(url.href, {}, 'get');
+                if(!response) {
+                    return;
+                }
+
+                const html = document.createElement('div');
+                html.innerHTML = response;
+
+                const nextPageWrapper = html.querySelector(`.${wrapperClass}`);
+                if(!nextPageWrapper) {
+                    return;
+                }
+
+                const nextPageItems = nextPageWrapper.querySelectorAll(`.${itemClass}`);
+                if(nextPageItems.length === 0) {
+                    return;
+                }
+
+                // Подстановка элементов в конец контейнера
+                nextPageItems.forEach(item => wrapper.appendChild(item));
+
+                // Перемещение кнопки
+                if(nextPage <= this.lastPage) {
+                    button.dataset[pageAttributeName] = nextPage + 1;
+                    button.classList.remove(this.hiddenClass);
+                }
+            })
+        }
+
+        /**
+         * Отправка ajax запроса
+         *
+         * @param {String} path путь до ajax обработчика
+         * @param {Object} data данные
+         * @param {String} method тип запроса
+         * @return {Promise<*>}
+         */
+        async sendAjax(path, data, method = 'post') {
+            return $.ajax({
+                url: path,
+                method: method,
+                data: data,
+                success: function(response) {
+                    return response.data;
+                },
+                error: function(error) {
+                    return false;
+                }
+            });
+        }
+    }
+</script>
