@@ -55,6 +55,29 @@ namespace App\Models;
  *         <p><b>static::initShowMoreButton()</b></p>
  *     </li>
  * </ol>
+ *
+ * <h2>Пагинация</h2>
+ * <h3>I. Постраничная</h3>
+ * <ol>
+ *     <li>Вызываем метод: <p><b>static::getPagination()</b></p></li>
+ *     <li>Натягиваем на вёрстку</li>
+ * </ol>
+ *
+ * <h3>II. "Показать ещё"</h3>
+ * <ol>
+ *     <li>Натягиваем на вёрстку классы:
+ *         <p><b>static::$showMoreWrapperClass()</b></p>
+ *         <p><b>static::$showMoreItemClass()</b></p>
+ *         <p><b>static::$showMoreButtonClass()</b></p>
+ *     </li>
+ *     <li>На кнопку добавляем:
+ *         <p><b>data-\App\Models\Order::$pageVariable="$pagination['NEXT_PAGE']['NUMBER']"</b></p>
+ *     </li>
+ *     <li>Вызываем метод уже после вёрстки:
+ *         <p><b>static::initShowMoreButton()</b></p>
+ *     </li>
+ * </ol>
+ *
  */
 abstract class D7TableModel implements \ArrayAccess
 {

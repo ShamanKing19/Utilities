@@ -100,12 +100,7 @@ abstract class IblockModel implements \ArrayAccess
         if(static::$useCache) {
             $item = static::getFromCache($id);
             if($item) {
-                $props = $item['PROPERTIES'];
-                unset($item['PROPERTIES']);
-
-                $instance = new static($id, $item, $props);
-                static::$instanceList[$id] = $instance;
-                return $instance;
+                return current(static::makeInstanceList([$item]));
             }
         }
 
@@ -116,7 +111,6 @@ abstract class IblockModel implements \ArrayAccess
 
         static::saveToCache($item);
         static::$instanceList[$id] = $item;
-        
         return $item;
     }
 
@@ -140,19 +134,7 @@ abstract class IblockModel implements \ArrayAccess
         if(static::$useCache) {
             $items = static::getListFromCache($filter, $order, $limit, $offset);
             if($items) {
-                foreach($items as $key => $item) {
-                    $itemId = $item['ID'];
-                    $props = $item['PROPERTIES'];
-                    unset($item['PROPERTIES']);
-
-                    $instance = new static($itemId, $item, $props);
-                    $items[$key] = $instance;
-                    if(empty(static::$instanceList[$itemId])) {
-                        static::$instanceList[$itemId] = $instance;
-                    }
-                }
-
-                return $items;
+                return static::makeInstanceList($items);
             }
         }
 
@@ -204,6 +186,30 @@ abstract class IblockModel implements \ArrayAccess
         }
 
         return $items;
+    }
+
+    /**
+     * Формирует массив сущностей из простого массива с полями
+     *
+     * @param array $items Массив элементов
+     *
+     * @return array<static>
+     */
+    final protected static function makeInstanceList(array $items) : array
+    {
+        return array_map(function($item) {
+            $itemId = $item['ID'];
+            if(static::$instanceList[$itemId]) {
+                return static::$instanceList[$itemId];
+            }
+
+            $props = $item['PROPERTIES'];
+            unset($item['PROPERTIES']);
+
+            $instance = new static($itemId, $item, $props);
+            static::$instanceList[$itemId] = $instance;
+            return $instance;
+        }, $items);
     }
 
     /**
@@ -398,7 +404,7 @@ abstract class IblockModel implements \ArrayAccess
     /**
      * Сохранение элемента в кэш
      *
-     * @param static $item
+     * @param static $item Экземпляр сущности
      *
      * @return bool
      */
