@@ -5,9 +5,13 @@ namespace App\Models;
  * Модель для таблицы, потомка \Bitrix\Main\Entity\DataManager
  * <h2>Старт</h2>
  * <ol>
- *     <li>Для работы нужно унаследоваться и объявить: <p><b>public static string $table = SomeTable::clas;s</b></p></li>
+ *     <li>Для работы нужно унаследоваться и объявить: <p><b>public static string $table = SomeTable::class</b></p></li>
  *     <li>Если нужно установить "высчитываемый" фильтр, например по id пользователя, то можно вызвать один раз в init.php
  *          <p><b>static::setFilter(['USER_ID' => $USER->getId()]);</b></p>
+ *     </li>
+ *     <li>Можно присоединить таблицу с пользовательскими полями UF_* (для некоторых сущностей реализовано по умолчанию, например, \Bitrix\Main\UserTable).
+ *         Для этого нужно либо указать название таблицы:
+ *         <p><b>static::$ufTable</b></p> либо переопределить метод если в названии есть какой-то id<p><b>static::getUfTableName()</b></p>
  *     </li>
  *     <li>Можно добавить JOIN (пока что только 1:1) методом
  *          <p><b>static::addJoin();</b></p>
@@ -56,30 +60,8 @@ namespace App\Models;
  *     </li>
  * </ol>
  *
- * <h2>Пагинация</h2>
- * <h3>I. Постраничная</h3>
- * <ol>
- *     <li>Вызываем метод: <p><b>static::getPagination()</b></p></li>
- *     <li>Натягиваем на вёрстку</li>
- * </ol>
- *
- * <h3>II. "Показать ещё"</h3>
- * <ol>
- *     <li>Натягиваем на вёрстку классы:
- *         <p><b>static::$showMoreWrapperClass()</b></p>
- *         <p><b>static::$showMoreItemClass()</b></p>
- *         <p><b>static::$showMoreButtonClass()</b></p>
- *     </li>
- *     <li>На кнопку добавляем:
- *         <p><b>data-\App\Models\Order::$pageVariable="$pagination['NEXT_PAGE']['NUMBER']"</b></p>
- *     </li>
- *     <li>Вызываем метод уже после вёрстки:
- *         <p><b>static::initShowMoreButton()</b></p>
- *     </li>
- * </ol>
- *
  */
-abstract class D7TableModel implements \ArrayAccess
+abstract class Model implements \ArrayAccess
 {
     /**
      * Обязательные к заполнению поля
@@ -103,6 +85,13 @@ abstract class D7TableModel implements \ArrayAccess
 
     /** @var array Join'ы к таблице */
     protected static array $runtime = [];
+
+    /**
+     * Пользовательские поля (UF_*)
+     */
+
+    /** @var string Название таблицы, в которой содержатся значения пользовательских полей */
+    protected static string $ufTable;
 
     /**
      * Кэширование
@@ -199,7 +188,7 @@ abstract class D7TableModel implements \ArrayAccess
      *
      * @param string $key
      *
-     * @return mixed|null
+     * @return mixed
      */
     public function getField(string $key) : mixed
     {
@@ -267,7 +256,7 @@ abstract class D7TableModel implements \ArrayAccess
      *
      * @return static|false
      */
-    final public static function findBy(string $key, mixed $value) : static|false
+    final public static function findBy(string $key, $value) : static|false
     {
         return current(static::getList([$key => $value])) ?? false;
     }
@@ -333,7 +322,7 @@ abstract class D7TableModel implements \ArrayAccess
      *
      * @return array<static>
      */
-    public static function getListRaw(array $filter = [], array $order = [], int $limit = 0, int $offset = 0) : array
+    protected static function getListRaw(array $filter = [], array $order = [], int $limit = 0, int $offset = 0) : array
     {
         foreach(static::$filter as $key => $value) {
             if(!isset($filter[$key])) {
@@ -394,6 +383,20 @@ abstract class D7TableModel implements \ArrayAccess
             }
         }
 
+        /**
+         * Присоединение пользовательских полей
+         */
+        if($items && static::getUfTableName()) {
+            $itemsIdList = array_column($items, 'ID');
+            if($itemsIdList) {
+                $ufValues = static::getUserFieldValues($itemsIdList);
+                foreach($ufValues as $itemId => $fields) {
+                    $items[$itemId] = array_merge($items[$itemId], $fields);
+                }
+            }
+        }
+
+
         return static::makeInstanceList($items);
     }
 
@@ -437,7 +440,11 @@ abstract class D7TableModel implements \ArrayAccess
      */
     final protected static function makeInstanceList(array $items) : array
     {
-        return array_map(function($item) {
+        if(empty($items)) {
+            return [];
+        }
+
+        return array_map(static function($item) {
             $itemId = $item['ID'];
             if(static::$instanceList[$itemId]) {
                 return static::$instanceList[$itemId];
@@ -477,6 +484,59 @@ abstract class D7TableModel implements \ArrayAccess
     {
         static::$table::delete($id);
         static::clearCache($id);
+    }
+
+    /**
+     * Пользовательские поля UF_*
+     */
+
+    /**
+     * Получение значений пользовательских полей для элементов
+     *
+     * @param array $elementIdList Список id элементов, значения которых надо найти
+     *
+     * @return array
+     */
+    final protected static function getUserFieldValues(array $elementIdList) : array
+    {
+        $tableName = static::getUfTableName();
+        if(empty($tableName) || empty($elementIdList)) {
+            return [];
+        }
+
+        global $DB;
+        $idString = implode(',', $elementIdList);
+        $request = $DB->query("SELECT * FROM $tableName WHERE VALUE_ID IN ($idString)");
+        $items = [];
+        while($fields = $request->fetch()) {
+            $itemId = $fields['VALUE_ID'];
+            unset($fields['VALUE_ID']);
+
+            foreach($fields as $key => $field) {
+                $unserializedValue = unserialize($field);
+                if($unserializedValue !== false) {
+                    $fields[$key] = $unserializedValue;
+                }
+            }
+
+            $items[$itemId] = $fields;
+        }
+
+        return $items;
+    }
+
+    /**
+     * Получение названия таблицы, в которой лежат значения пользовательских полей UF_*
+     *
+     * @return string
+     */
+    protected static function getUfTableName() : string
+    {
+        if(isset(static::$ufTable)) {
+            return static::$ufTable;
+        }
+
+        return '';
     }
 
     /**
@@ -674,7 +734,6 @@ abstract class D7TableModel implements \ArrayAccess
 
     /**
      * Регистрация событий очистки кэша
-     * // TODO: Сделать переменные с событиями создания, обновления и удаления + оставить массив static::$clearCacheEventList. Очищать кэш выборок всегда, а кэш соло элементов только по событиям обновления и удаления
      */
     final public static function registerCacheEvents() : void
     {
@@ -707,7 +766,7 @@ abstract class D7TableModel implements \ArrayAccess
             });
         }
 
-        // Очистка кэша выборок getList
+        // Очистка кэша выборок static::getList()
         if(static::$addEvent) {
             $itemCacheEvents[] = static::$addEvent;
         }

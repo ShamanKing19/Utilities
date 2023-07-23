@@ -10,7 +10,7 @@ namespace App\Models;
  * <ol>
  *     <li>Унаследоваться от данного класса</li>
  *     <li>Переопределить "<b>protected static string $iblockCode</b>"</li>
- *     <li>Если нужно использовать кэш, то установить  "<b>protected static bool $userCache = true</b>"</li>
+ *     <li>Если нужно использовать кэш, то установить  "<b>protected static bool $useCache = true</b>"</li>
  *     <li>Вызвать "<b>static::registerCacheEvents()</b>" в init.php, если включён кэш</li>
  * </ol>
  */
@@ -126,7 +126,7 @@ abstract class IblockModel implements \ArrayAccess
      */
     public static function getList(array $filter = [], array $order = ['ID' => 'ASC'], int $limit = 0, int $offset = 0) : array
     {
-        if(isset($filter['ID'])) {
+        if(count($filter) === 1 && isset($filter['ID']) && is_numeric($filter['ID'])) {
             return static::getListRaw($filter, $order, $limit, $offset);
         }
 
@@ -261,7 +261,7 @@ abstract class IblockModel implements \ArrayAccess
         // Чистка кэша отдельных элементов
         $clearCacheEventList = ['OnAfterIBlockElementUpdate', 'OnAfterIBlockElementDelete'];
         foreach($clearCacheEventList as $event) {
-            $eventManager->addEventHandler('iblock', $event, function($data) use($event) {
+            $eventManager->addEventHandler('iblock', $event, function($data) {
                 if(is_numeric($data)) {
                     $elementId = (int)$data;
                 } elseif(is_array($data)) {
@@ -277,8 +277,10 @@ abstract class IblockModel implements \ArrayAccess
         // Чистка кэша выборок
         $clearCacheEventList[] = 'OnAfterIBlockElementAdd';
         foreach($clearCacheEventList as $event) {
-            $eventManager->addEventHandler('iblock', $event, function($data) use($event) {
-                static::clearListCache();
+            $eventManager->addEventHandler('iblock', $event, function($data) {
+                if((int)$data['IBLOCK_ID'] === static::getIblockId()) {
+                    static::clearListCache();
+                }
             });
         }
     }
@@ -332,7 +334,7 @@ abstract class IblockModel implements \ArrayAccess
         $cacheKey = static::getListCacheKey($filter, $order, $limit, $offset);
 
         if(!$cache->initCache(static::$cacheTime, $cacheKey, static::getListCachePath())) {
-            $items = array_map(fn($item) => $item->toArray(), $items);
+            $items = array_map(static fn($item) => $item->toArray(), $items);
             $cache->startDataCache();
             $cache->endDataCache($items);
             return true;
