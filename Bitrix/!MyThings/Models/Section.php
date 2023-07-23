@@ -167,9 +167,13 @@ class Section extends Model
      *
      * @return array<self>
      */
-    public function getParentSections(): array
+    public function getParentSections() : array
     {
         $parentSectionId = $this->getField('IBLOCK_SECTION_ID');
+        if(empty($parentSectionId)) {
+            return [];
+        }
+
         if(isset(self::$parentSectionList[$parentSectionId])) {
             return self::$parentSectionList[$parentSectionId];
         }
