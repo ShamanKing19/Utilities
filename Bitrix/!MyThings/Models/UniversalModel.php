@@ -2,6 +2,13 @@
 namespace App\Models;
 
 /**
+ * ! Получилось присоединить свойства инфоблоков, остановился на дополнительном поиске значений для свойств типа "Список".
+ * ! Бросил это дело, т. к. не получится фильтровать по свойствам
+ */
+
+
+
+/**
  * Модель для таблицы, потомка \Bitrix\Main\Entity\DataManager
  * <h2>Старт</h2>
  * <ol>
@@ -68,11 +75,14 @@ abstract class Model implements \ArrayAccess
      */
 
     /* @var \Bitrix\Main\Entity\DataManager название класса (SomeTable::class), потомка \Bitrix\Main\Entity\DataManager */
-    public static string $table;
+    public static string $table = \Bitrix\Iblock\ElementTable::class;
 
     /**
      * Настраиваемые поля
      */
+
+    /** @var string Символьный код инфоблока, которому принадлежат элементы (если он есть) */
+    protected static string $iblockCode;
 
     /* @var array Дополнительные поля для фильтра в getListRaw (Можно установить с помощью метода static::setFilter()) */
     protected static array $filter = [];
@@ -140,6 +150,13 @@ abstract class Model implements \ArrayAccess
     public static string $showMoreItemClass = 'js-show-more--item';
 
     /**
+     * Служебные поля
+     */
+
+    /** @var array Массив с информацией об инфоблоках */
+    protected static array $iblockList = [];
+
+    /**
      * Свойства
      */
 
@@ -184,9 +201,9 @@ abstract class Model implements \ArrayAccess
      *
      * @param string $key
      *
-     * @return mixed
+     * @return mixed|null
      */
-    public function getField(string $key) : mixed
+    public function getField(string $key)
     {
         if(!array_key_exists($key, $this->fields) || is_null($this->fields[$key])) {
             return null;
@@ -203,7 +220,7 @@ abstract class Model implements \ArrayAccess
      *
      * @return static
      */
-    public function setField(string $key, string $value) : static
+    public function setField(string $key, string $value)
     {
         $this->fields[$key] = $value;
         return $this;
@@ -239,7 +256,7 @@ abstract class Model implements \ArrayAccess
      *
      * @return static|false
      */
-    final public static function find(int $id) : static|false
+    final public static function find(int $id)
     {
         return static::$instanceList[$id] ?? static::findBy('ID', $id);
     }
@@ -252,7 +269,7 @@ abstract class Model implements \ArrayAccess
      *
      * @return static|false
      */
-    final public static function findBy(string $key, $value) : static|false
+    final public static function findBy(string $key, $value)
     {
         return current(static::getList([$key => $value])) ?? false;
     }
@@ -392,6 +409,20 @@ abstract class Model implements \ArrayAccess
             }
         }
 
+        /**
+         * Присоединение свойств инфоблока
+         */
+        if($items && static::getIblockId() > 0) {
+            $itemsIdList = array_column($items, 'ID');
+            $singlePropertyValues = static::getSinglePropertyValues($itemsIdList);
+            $multyPropertyValues = static::getMultyPropertyValues($itemsIdList);
+            foreach($items as $item) {
+                $itemId = $item['ID'];
+                $items[$itemId]['PROPERTIES'] = array_merge($singlePropertyValues[$itemId], $multyPropertyValues[$itemId]);
+                uasort($items[$itemId]['PROPERTIES'], fn($a, $b) => $a['SORT'] <=> $b['SORT']);
+            }
+        }
+
         return static::makeInstanceList($items);
     }
 
@@ -458,7 +489,7 @@ abstract class Model implements \ArrayAccess
      *
      * @return static|false
      */
-    final public static function create(array $fields) : static|false
+    final public static function create(array $fields)
     {
         $result = static::$table::add($fields);
         $itemId = $result->getId();
@@ -487,6 +518,7 @@ abstract class Model implements \ArrayAccess
 
     /**
      * Получение значений пользовательских полей для элементов
+     * TODO: Присоединять значения из b_user_field_enum
      *
      * @param array $elementIdList Список id элементов, значения которых надо найти
      *
@@ -532,6 +564,235 @@ abstract class Model implements \ArrayAccess
         }
 
         return '';
+    }
+
+    /**
+     *
+     * Инфоблоки
+     *
+     */
+
+    /**
+     * Получение значений для свойств типа "Список"
+     * <pre>
+     * [
+     *     PROPERTY_ID => [
+     *         'ID' => 'int',
+     *         'VALUE' => 'string',
+     *         'XML_ID' => 'string',
+     *     ]
+     * ]
+     * </pre>
+     *
+     * @param array $enumValueList Значения свойств типа "Список"
+     *
+     * @return array
+     */
+    final protected static function getEnumPropertyValues(array $enumValueList) : array
+    {
+        if(empty($enumValueList)) {
+            return [];
+        }
+
+        $request = \Bitrix\Iblock\PropertyEnumerationTable::getList(['filter' => ['ID' => $enumValueList]]);
+        $valueList = [];
+        while($value = $request->fetch()) {
+            $valueList[$value['PROPERTY_ID']] = [
+                'ID' => $value['ID'],
+                'VALUE' => $value['VALUE'],
+                'XML_ID' => $value['XML_ID'],
+            ];
+        }
+
+        return $valueList;
+    }
+
+    /**
+     * Получение значений множественных свойств инфоблока
+     * TODO: Присоединять значения из b_iblock_property_enum
+     *
+     * @param array $elementIdList
+     *
+     * @return array
+     */
+    final protected static function getMultyPropertyValues(array $elementIdList) : array
+    {
+        if(empty($elementIdList)) {
+            return [];
+        }
+
+        global $DB;
+        $elementIdListString = implode(',', $elementIdList);
+
+        $tableName = static::getMultyPropertyValuesTableName();
+        $request = $DB->query("SELECT * FROM $tableName WHERE IBLOCK_ELEMENT_ID IN ($elementIdListString)");
+
+        $multyPropertyList = [];
+        while($elementProps = $request->fetch()) {
+            $elementId = $elementProps['IBLOCK_ELEMENT_ID'];
+            $propertyId = $elementProps['IBLOCK_PROPERTY_ID'];
+            $multyPropertyList[$elementId][$propertyId]['VALUE'][] = $elementProps['VALUE'];
+            $multyPropertyList[$elementId][$propertyId]['VALUE_ENUM'][] = $elementProps['VALUE_ENUM'];
+        }
+
+        $propertyIdList = array_keys(current($multyPropertyList));
+        $propertyList = static::getPropertyList($propertyIdList);
+
+        $result = [];
+        foreach($multyPropertyList as $elementId => $props) {
+            foreach($props as $propertyId => $propertyValues) {
+                $property = $propertyList[$propertyId];
+                $result[$elementId][$property['CODE']] = array_merge($property, $propertyValues);
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Получение значений одиночных свойств инфоблока
+     * TODO: Присоединять значения из b_iblock_property_enum
+     * <pre>
+     * [
+     *     'PROPERTY_CODE' => [
+     *         'VALUE' => 'mixed',
+     *         'VALUE_ENUM' => [
+     *             'ID' => 'int',
+     *             'VALUE' => 'string',
+     *             'XML_ID' => 'string'
+     *         ],
+     *         ...
+     *     ]
+     * ]
+     * </pre>
+     *
+     * @param array $elementIdList ID элементов инфоблока
+     *
+     * @return array
+     */
+    final protected static function getSinglePropertyValues(array $elementIdList) : array
+    {
+        if(empty($elementIdList)) {
+            return [];
+        }
+
+        global $DB;
+        $elementIdListString = implode(',', $elementIdList);
+
+        $tableName = static::getSinglePropertyValuesTableName();
+        $request = $DB->query("SELECT * FROM $tableName WHERE IBLOCK_ELEMENT_ID IN ($elementIdListString)");
+
+        /**
+         * elementId => [
+         *     propertyId => propertyValue
+         * ]
+         */
+        $propertyValueList = [];
+        while($elementProps = $request->fetch()) {
+            $elementId = $elementProps['IBLOCK_ELEMENT_ID'];
+            unset($elementProps['IBLOCK_ELEMENT_ID']);
+            foreach($elementProps as $key => $value) {
+                if(strpos($key, 'DESCRIPTION') !== false) {
+                    continue;
+                }
+
+                $unserializedValue = unserialize($value);
+                if($unserializedValue !== false) {
+                    $value = $unserializedValue;
+                }
+
+                $propertyId = str_replace('PROPERTY_', '', $key);
+                $propertyValueList[$elementId][$propertyId] = $value;
+            }
+        }
+
+        $propertyIdList = array_keys(current($propertyValueList) ?? []);
+        $propertyList = static::getPropertyList($propertyIdList);
+
+        // Присоединение свойств к элементам
+        $result = [];
+        foreach($propertyValueList as $elementId => $props) {
+            foreach($props as $propertyId => $propertyValue) {
+                $property = $propertyList[$propertyId];
+                $result[$elementId][$property['CODE']] = $property;
+                $result[$elementId][$property['CODE']]['VALUE'] = $propertyValue;
+
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Получение свойств инфоблока
+     *
+     * @param array $propertyIdList ID свойств
+     *
+     * @return array
+     */
+    final protected static function getPropertyList(array $propertyIdList) : array
+    {
+        $request = \Bitrix\Iblock\PropertyTable::getList(['filter' => ['ID' => $propertyIdList]]);
+        $propertyList = [];
+        while($property = $request->fetch()) {
+            $property['USER_TYPE_SETTINGS'] = unserialize($property['USER_TYPE_SETTINGS']);
+            $property['DEFAULT_VALUE'] = unserialize($property['DEFAULT_VALUE']);
+            $propertyList[$property['ID']] = $property;
+        }
+
+        return $propertyList;
+    }
+
+    /**
+     * Получение названия таблицы с множественными значениями свойств
+     *
+     * @return string
+     */
+    final protected static function getMultyPropertyValuesTableName() : string
+    {
+        return 'b_iblock_element_prop_m' . static::getIblockId();
+    }
+
+    /**
+     * Получение названия таблицы с одиночными значениями свойств
+     *
+     * @return string
+     */
+    final protected static function getSinglePropertyValuesTableName() : string
+    {
+        return 'b_iblock_element_prop_s' . static::getIblockId();
+    }
+
+    /**
+     * Получение id инфоблока
+     *
+     * @return int
+     */
+    final public static function getIblockId() : int
+    {
+        $iblock = static::getIblock();
+        return $iblock ? (int)$iblock['ID'] : 0;
+    }
+
+    /**
+     * Получение информации об инфоблоке
+     *
+     * @return array
+     */
+    final public static function getIblock() : array
+    {
+        if(!isset(static::$iblockCode)) {
+            return [];
+        }
+
+        if(isset(self::$iblockList[static::$iblockCode])) {
+            return self::$iblockList[static::$iblockCode];
+        }
+
+        $iblock = \Bitrix\Iblock\IblockTable::getList([
+            'filter' => ['CODE' => static::$iblockCode]
+        ])->fetch();
+        return self::$iblockList[static::$iblockCode] = $iblock;
     }
 
     /**
