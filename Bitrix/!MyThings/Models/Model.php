@@ -517,6 +517,76 @@ abstract class Model implements \ArrayAccess
             $items[$itemId] = $fields;
         }
 
+        if(empty($items)) {
+            return [];
+        }
+
+        // Получение полей типа "Список"
+        $keys = array_keys(current($items));
+        $userFields = \Bitrix\Main\UserFieldTable::getList([
+            'filter' => [
+                'FIELD_NAME' => $keys,
+                'USER_TYPE_ID' => 'enumeration'
+            ],
+            'select' => ['FIELD_NAME']
+        ])->fetchAll();
+        $listFieldCodes = array_column($userFields, 'FIELD_NAME');
+
+         // Сбор значений типа "Список"
+        $listValueIdList = [];
+        foreach($listFieldCodes as $code) {
+            foreach($items as $item) {
+                $value = $item[$code];
+                if(empty($value)) {
+                    continue;
+                }
+
+                $value = is_array($value) ? $value : [$value];
+                $listValueIdList = array_merge($listValueIdList, $value);
+            }
+        }
+
+        if(empty($listValueIdList)) {
+            return $items;
+        }
+
+        // Получение значений типа "Список"
+        $valueIdString = implode(',', $listValueIdList);
+        $request = $DB->query("SELECT * FROM b_user_field_enum WHERE ID IN ($valueIdString)");
+        $enumValues = [];
+        while($value = $request->fetch()) {
+            $enumValues[$value['ID']] = $value;
+        }
+
+        // Подстановка найденных значений
+        foreach($items as &$item) {
+            foreach($listFieldCodes as $code) {
+                if(empty($item[$code])) {
+                    continue;
+                }
+
+                $values = [];
+                if(is_array($item[$code])) {
+                    foreach($item[$code] as $valueId) {
+                        $values[] = [
+                            'ID' => $valueId,
+                            'VALUE' => $enumValues[$valueId]['VALUE'],
+                            'XML_ID' => $enumValues[$valueId]['XML_ID']
+                        ];
+                    }
+                } else {
+                    $valueId = $item[$code];
+                    $values = [
+                        'ID' => $valueId,
+                        'VALUE' => $enumValues[$valueId]['VALUE'],
+                        'XML_ID' => $enumValues[$valueId]['XML_ID']
+                    ];
+                }
+
+                $item[$code] = $values;
+            }
+        }
+
         return $items;
     }
 
