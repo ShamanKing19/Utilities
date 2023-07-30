@@ -1,6 +1,8 @@
 <?php
 namespace App\Models;
 
+use App\Tools\Log;
+
 \Bitrix\Main\Loader::includeModule('iblock');
 
 /**
@@ -9,15 +11,20 @@ namespace App\Models;
  * <h3>Для начала работы нужно</h3>
  * <ol>
  *     <li>Унаследоваться от данного класса</li>
- *     <li>Переопределить "<b>protected static string $iblockCode</b>"</li>
- *     <li>Если нужно использовать кэш, то установить  "<b>protected static bool $useCache = true</b>"</li>
- *     <li>Вызвать "<b>static::registerCacheEvents()</b>" в init.php, если включён кэш</li>
+ *     <li>Переопределить "<b>protected static string $iblockCode;</b>"</li>
+ *     <li>Если нужно инфоблок является торговым каталогом, то устанавливаем "<b>protected static bool $isCatalog = true;</b>"</li>
+ *     <li>Если нужно использовать кэш, то установить  "<b>protected static bool $useCache = true;</b>"</li>
+ *     <li>Вызвать "<b>static::registerCacheEvents();</b>" в init.php, если включён кэш</li>
+ *     <li>Можно добавить коллбэки, которые будут вызваны при очистке кэша методом <b>static::addClearCacheCallback();</b></li>
  * </ol>
  */
 abstract class IblockModel implements \ArrayAccess
 {
     /** @var string Символьный код инфоблока */
     protected static string $iblockCode;
+
+    /** @var bool Является ли инфоблок торговым каталогом */
+    protected static bool $isCatalog = false;
 
     /** @var int ID инфоблока */
     protected static int $iblockId = 0;
@@ -28,11 +35,17 @@ abstract class IblockModel implements \ArrayAccess
     /** @var array Массив с уже созданными объектами */
     public static array $instanceList = [];
 
+    /** @var array Массив с символьными кодами и id инфоблоков */
+    public static array $iblockCodeIdMap = [];
+
     /** @var bool Использовать ли кэш */
     protected static bool $useCache = false;
 
     /** @var int Время хранения кэша */
     protected static int $cacheTime = 86400;
+
+    /** @var array Коллбэки, вызываемые при очистке кэша */
+    protected static array $clearCacheCallbackList = [];
 
     /** @var int ID элемента */
     protected int $id;
@@ -96,21 +109,11 @@ abstract class IblockModel implements \ArrayAccess
             return static::$instanceList[$id];
         }
 
-        // Попытка достать данные из кэша
-        if(static::$useCache) {
-            $item = static::getFromCache($id);
-            if($item) {
-                return current(static::makeInstanceList([$item]));
-            }
-        }
-
-        $item = current(static::getListRaw(['ID' => $id]));
+        $item = current(static::getList(['ID' => $id]));
         if(empty($item)) {
             return false;
         }
 
-        static::saveToCache($item);
-        static::$instanceList[$id] = $item;
         return $item;
     }
 
@@ -124,18 +127,25 @@ abstract class IblockModel implements \ArrayAccess
      *
      * @return array<static>
      */
-    public static function getList(array $filter = [], array $order = ['ID' => 'ASC'], int $limit = 0, int $offset = 0) : array
+    public static function getList(array $filter = [], array $order = [], int $limit = 0, int $offset = 0) : array
     {
-        if(count($filter) === 1 && isset($filter['ID']) && is_numeric($filter['ID'])) {
-            return static::getListRaw($filter, $order, $limit, $offset);
+        if(!static::$useCache) {
+            static::getListRaw($filter, $order, $limit, $offset);
         }
 
-        // Попытка достать данные из кэша
-        if(static::$useCache) {
-            $items = static::getListFromCache($filter, $order, $limit, $offset);
-            if($items) {
-                return static::makeInstanceList($items);
-            }
+        $cache = \Bitrix\Main\Data\Cache::createInstance();
+        $cacheKey = static::getCacheKey($filter, $order, $limit, $offset);
+        $cachePath = static::getListCachePath();
+
+        // Для выборки по одному элементу свой путь для кэша, чтобы при добавлении/обновлении/удалении не очищать его
+        if(count($filter) === 1 && isset($filter['ID']) && is_numeric($filter['ID'])) {
+            $cachePath = static::getCachePath();
+        }
+
+        if($cache->initCache(static::$cacheTime, $cacheKey, $cachePath)) {
+            $items = $cache->getVars();
+            $cache->abortDataCache();
+            return static::makeInstanceList($items);
         }
 
         $items = static::getListRaw($filter, $order, $limit, $offset);
@@ -143,7 +153,9 @@ abstract class IblockModel implements \ArrayAccess
             return [];
         }
 
-        static::saveListToCache($items, $filter, $order, $limit, $offset);
+        $cache->startDataCache();
+        $cache->endDataCache(array_map(static fn($item) => $item->toArray(), $items));
+
         return $items;
     }
 
@@ -174,6 +186,12 @@ abstract class IblockModel implements \ArrayAccess
         while($item = $request->getNextElement()) {
             $fields = $item->getFields();
             $itemId = $fields['ID'];
+            foreach($fields as $key => $field) {
+                if(mb_strpos($key, '~') === 0) {
+                    unset($fields[$key]);
+                }
+            }
+
             if(static::$instanceList[$itemId]) {
                 $items[$itemId] = static::$instanceList[$itemId];
                 continue;
@@ -182,7 +200,20 @@ abstract class IblockModel implements \ArrayAccess
             $props = $item->getProperties();
             $instance = new static($itemId, $fields, $props);
             $items[$itemId] = $instance;
-            static::$instanceList[$itemId] = $instance;
+        }
+
+        if(static::$isCatalog) {
+            $catalogRequest = \Bitrix\Catalog\ProductTable::getList(['filter' => ['ID' => array_keys($items)]]);
+            while($catalogItem = $catalogRequest->fetch()) {
+                $items[$catalogItem['ID']]['PRODUCT_INFO'] = $catalogItem;
+            }
+        }
+
+        foreach($items as $item) {
+            $itemId = $item['ID'];
+            if(empty(static::$instanceList[$itemId])) {
+                static::$instanceList[$itemId] = $item;
+            }
         }
 
         return $items;
@@ -197,7 +228,7 @@ abstract class IblockModel implements \ArrayAccess
      */
     final protected static function makeInstanceList(array $items) : array
     {
-        return array_map(function($item) {
+        return array_map(static function($item) {
             $itemId = $item['ID'];
             if(static::$instanceList[$itemId]) {
                 return static::$instanceList[$itemId];
@@ -219,12 +250,12 @@ abstract class IblockModel implements \ArrayAccess
      */
     final public static function getIblockId() : int
     {
-        if(empty(static::$iblockId)) {
+        if(empty(static::$iblockCodeIdMap[static::$iblockCode])) {
             $iblock = static::getIblock();
-            static::$iblockId = $iblock['ID'] ?? 0;
+            static::$iblockCodeIdMap[static::$iblockCode] = $iblock['ID'] ?? 0;
         }
 
-        return static::$iblockId;
+        return static::$iblockCodeIdMap[static::$iblockCode];
     }
 
     /**
@@ -234,16 +265,11 @@ abstract class IblockModel implements \ArrayAccess
      */
     final public static function getIblock() : array
     {
-        if(empty(static::$iblock)) {
-            static::$iblock = \Bitrix\Iblock\IblockTable::getList([
-                'filter' => ['CODE' => static::$iblockCode],
-                'cache' => ['ttl' => 86400]
-            ])->fetch() ?? [];
-        }
-
-        return static::$iblock;
+        return \Bitrix\Iblock\IblockTable::getList([
+            'filter' => ['CODE' => static::$iblockCode],
+            'cache' => ['ttl' => 86400]
+        ])->fetch() ?? [];
     }
-
 
     /**
      *
@@ -280,6 +306,7 @@ abstract class IblockModel implements \ArrayAccess
             $eventManager->addEventHandler('iblock', $event, function($data) {
                 if((int)$data['IBLOCK_ID'] === static::getIblockId()) {
                     static::clearListCache();
+                    array_map(static fn($callback) => $callback(), static::$clearCacheCallbackList);
                 }
             });
         }
@@ -297,143 +324,38 @@ abstract class IblockModel implements \ArrayAccess
     }
 
     /**
-     * Получение выборки из кэша
-     *
-     * @param array $filter Фильтр для \CIBlockElement::getList()
-     * @param array $order Сортировка ['KEY_1' => 'ASC', 'KEY_2' => 'DESC']
-     * @param int $limit Ограничение выборки
-     * @param int $offset Сдвиг
-     *
-     * @return array|false
-     */
-    final protected static function getListFromCache(array $filter, array $order, int $limit, int $offset) : array|false
-    {
-        $cache = \Bitrix\Main\Data\Cache::createInstance();
-        $cacheKey = static::getListCacheKey($filter, $order, $limit, $offset);
-        if($cache->initCache(static::$cacheTime, $cacheKey, static::getListCachePath())) {
-            return $cache->getVars();
-        }
-
-        return false;
-    }
-
-    /**
-     * Кеширование выборки
-     *
-     * @param array<static> $items Элементы, которые нужно кешировать
-     * @param array $filter Фильтр для \CIBlockElement::getList()
-     * @param array $order Сортировка ['KEY_1' => 'ASC', 'KEY_2' => 'DESC']
-     * @param int $limit Ограничение выборки
-     * @param int $offset Сдвиг
-     *
-     * @return bool
-     */
-    final protected static function saveListToCache(array $items, array $filter, array $order, int $limit, int $offset) : bool
-    {
-        $cache = \Bitrix\Main\Data\Cache::createInstance();
-        $cacheKey = static::getListCacheKey($filter, $order, $limit, $offset);
-
-        if(!$cache->initCache(static::$cacheTime, $cacheKey, static::getListCachePath())) {
-            $items = array_map(static fn($item) => $item->toArray(), $items);
-            $cache->startDataCache();
-            $cache->endDataCache($items);
-            return true;
-        }
-
-        return false;
-    }
-
-    /**
-     * Получение идентификатора кэша для выборки
-     *
-     * @param array $filter Фильтр для \CIBlockElement::getList()
-     * @param array $order Сортировка ['KEY_1' => 'ASC', 'KEY_2' => 'DESC']
-     * @param int $limit Ограничение выборки
-     * @param int $offset Сдвиг
-     *
-     * @return string
-     */
-    final protected static function getListCacheKey(array $filter, array $order, int $limit, int $offset) : string
-    {
-        return static::$iblockCode . '_' . serialize($filter) . '_' . serialize($order) . '_' . $limit . '_' . $offset;
-    }
-
-    /**
-     * Получение папки хранения кэша для выборок
-     *
-     * @return string
-     */
-    final protected static function getListCachePath() : string
-    {
-        return static::$iblockCode . '_list_cache';
-    }
-
-    /**
      * Очистка кэша
      *
      * @param int $id ID элемента
      */
+    /**
+     * Очистка кэша. Если указан id, чистится кэш всех выборок и кэш элемента с переданным id
+     */
     final public static function clearCache(int $id = 0) : void
     {
         $cache = \Bitrix\Main\Data\Cache::createInstance();
-        $cachePath = static::getCachePath();
-        if($id) {
-            $cache->clean(static::getCacheKey($id), $cachePath);
-        } else {
-            $cache->cleanDir($cachePath);
+        $itemsListCachePath = static::getListCachePath();
+        $cache->cleanDir($itemsListCachePath);
+        if($id !== 0) {
+            $cacheId = static::getCacheKey(['ID' => $id]);
+            $path = static::getCachePath();
+            $cache->clean($cacheId, $path);
         }
-    }
-
-    /**
-     * Получение элемента из кэша
-     *
-     * @param int $id ID элемента инфоблока
-     *
-     * @return array|false
-     */
-    final protected static function getFromCache(int $id) : array|false
-    {
-        $cache = \Bitrix\Main\Data\Cache::createInstance();
-        $cacheKey = static::getCacheKey($id);
-
-        if($cache->initCache(static::$cacheTime, $cacheKey, static::getCachePath())) {
-            return $cache->getVars();
-        }
-
-        return false;
-    }
-
-    /**
-     * Сохранение элемента в кэш
-     *
-     * @param static $item Экземпляр сущности
-     *
-     * @return bool
-     */
-    final protected static function saveToCache($item) : bool
-    {
-        $cache = \Bitrix\Main\Data\Cache::createInstance();
-        $cacheKey = static::getCacheKey($item->getId());
-
-        if(!$cache->initCache(static::$cacheTime, $cacheKey, static::getCachePath())) {
-            $cache->startDataCache();
-            $cache->endDataCache($item->toArray());
-            return true;
-        }
-
-        return false;
     }
 
     /**
      * Получение идентификатора кэша
      *
-     * @param int $id
+     * @param array $filter Фильтр для \CIBlockElement::getList()
+     * @param array $order Сортировка ['KEY_1' => 'ASC', 'KEY_2' => 'DESC']
+     * @param int $limit Ограничение выборки
+     * @param int $offset Сдвиг
      *
      * @return string
      */
-    final protected static function getCacheKey(int $id) : string
+    final protected static function getCacheKey(array $filter, array $order = [], int $limit = 0, int $offset = 0) : string
     {
-        return static::$iblockCode . '_' . $id;
+        return static::$iblockCode . '_' . md5(serialize($filter) . '_' . serialize($order) . '_' . $limit . '_' . $offset);
     }
 
     /**
@@ -443,7 +365,29 @@ abstract class IblockModel implements \ArrayAccess
      */
     final protected static function getCachePath() : string
     {
-        return static::$iblockCode . '_cache';
+        return static::$iblockCode . '_iblock_model_cache';
+    }
+
+    /**
+     * Получение папки хранения кэша для выборок
+     *
+     * @return string
+     */
+    final protected static function getListCachePath() : string
+    {
+        return static::$iblockCode . '_iblock_model_list_cache';
+    }
+
+    /**
+     * Добавление коллбэка, который будет вызван при очистке кэша
+     *
+     * @param callable $fn
+     *
+     * @return void
+     */
+    public static function addClearCacheCallback(callable $fn) : void
+    {
+        static::$clearCacheCallbackList[] = $fn;
     }
 
     /**
