@@ -6,8 +6,8 @@ namespace App\Models;
  * <h2>Старт</h2>
  * <ol>
  *     <li>Для работы нужно унаследоваться и объявить: <p><b>public static string $table = SomeTable::class</b></p></li>
- *     <li>Если нужно установить "высчитываемый" фильтр, например по id пользователя, то можно вызвать один раз в init.php
- *          <p><b>static::setFilter(['USER_ID' => $USER->getId()]);</b></p>
+ *     <li>Если нужно установить "высчитываемый" фильтр, например по id пользователя, то нужно переопределить метод
+ *          <p><b>static::getCustomFilter();</b></p>
  *     </li>
  *     <li>Можно присоединить таблицу с пользовательскими полями UF_* (для некоторых сущностей реализовано по умолчанию, например, \Bitrix\Main\UserTable).
  *         Для этого нужно либо указать название таблицы:
@@ -203,7 +203,7 @@ abstract class Model implements \ArrayAccess
      *
      * @return static
      */
-    public function setField(string $key, string $value) : static
+    public function setField(string $key, string $value)
     {
         $this->fields[$key] = $value;
         return $this;
@@ -241,7 +241,8 @@ abstract class Model implements \ArrayAccess
      */
     final public static function find(int $id) : static|false
     {
-        return static::$instanceList[$id] ?? static::findBy('ID', $id);
+        $key = static::getInstanceKey($id);
+        return static::$instanceList[$key] ?? static::findBy('ID', $id);
     }
 
     /**
@@ -269,9 +270,26 @@ abstract class Model implements \ArrayAccess
     }
 
     /**
+     * Получение списка элементов с учётом пагинации
+     *
+     * @param array $filter
+     * @param array $order
+     *
+     * @return mixed
+     */
+    final public static function getPageItems(array $filter = [], array $order = []) : array
+    {
+        $currentPage = static::getCurrentPage();
+        return static::getList($filter, $order, static::$itemsPerPage, ($currentPage - 1) * static::$itemsPerPage);
+    }
+
+    /**
      * Получение списка элементов в виде массива (кэшируемая)
      *
-     * @param array $filter фильтр
+     * @param array $filter
+     * @param array $order
+     * @param int $limit
+     * @param int $offset
      *
      * @return array<static>
      */
@@ -311,7 +329,7 @@ abstract class Model implements \ArrayAccess
     /**
      * Простая выборка элементов из таблицы (не кэшируемая)
      *
-     * @param array $filter фильтр
+     * @param array $filter
      * @param array $order
      * @param int $limit
      * @param int $offset
@@ -321,6 +339,12 @@ abstract class Model implements \ArrayAccess
     protected static function getListRaw(array $filter = [], array $order = [], int $limit = 0, int $offset = 0) : array
     {
         foreach(static::$filter as $key => $value) {
+            if(!isset($filter[$key])) {
+                $filter[$key] = $value;
+            }
+        }
+
+        foreach(static::getCustomFilter() as $key => $value) {
             if(!isset($filter[$key])) {
                 $filter[$key] = $value;
             }
@@ -396,13 +420,13 @@ abstract class Model implements \ArrayAccess
     }
 
     /**
-     * Установка фильтра по-умолчанию (Вызывать один раз в init.php)
+     * Установка фильтра по-умолчанию
      *
-     * @param array $filter Фильтр для таблицы
+     * @return array Кастомный фильтр
      */
-    final public static function setFilter(array $filter) : void
+    protected static function getCustomFilter() : array
     {
-        static::$filter = $filter;
+        return [];
     }
 
     /**
@@ -441,14 +465,27 @@ abstract class Model implements \ArrayAccess
 
         return array_map(static function($item) {
             $itemId = $item['ID'];
-            if(static::$instanceList[$itemId]) {
-                return static::$instanceList[$itemId];
+            $key = static::getInstanceKey($itemId);
+            if(static::$instanceList[$key]) {
+                return static::$instanceList[$key];
             }
 
             $instance = new static($itemId, $item);
-            static::$instanceList[$itemId] = $instance;
+            static::$instanceList[$key] = $instance;
             return $instance;
         }, $items);
+    }
+
+    /**
+     * Получение ключа элемента для $instanceList
+     *
+     * @param int $id ID элемента
+     *
+     * @return string
+     */
+    final protected static function getInstanceKey(int $id) : string
+    {
+        return static::$table . '_' . $id;
     }
 
     /**
@@ -749,6 +786,12 @@ abstract class Model implements \ArrayAccess
     final public static function getItemsCount(array $filter = []) : int
     {
         foreach(static::$filter as $key => $value) {
+            if(!isset($filter[$key])) {
+                $filter[$key] = $value;
+            }
+        }
+
+        foreach(static::getCustomFilter() as $key => $value) {
             if(!isset($filter[$key])) {
                 $filter[$key] = $value;
             }
