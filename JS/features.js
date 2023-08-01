@@ -6,18 +6,23 @@
  * @param {String} method тип запроса
  * @return {Promise<*>}
  */
-async function sendAjax(path, data, method = 'post') {
-    return $.ajax({
-        url: path,
-        method: method,
-        data: data,
-        success: function(response) {
-            return response.data;
-        },
-        error: function(error) {
-            return false;
-        }
-    });
+window.sendAjax = async function(path, data, method = 'post') {
+    let errorResponse;
+    try {
+        return await $.ajax({
+            url: path,
+            method: method,
+            data: data,
+            success: function(response) {
+                return response.data;
+            },
+            error: function(response, status, error) {
+                errorResponse = response.responseJSON;
+            }
+        });
+    } catch (e) {
+        return errorResponse;
+    }
 }
 
 
@@ -29,22 +34,26 @@ async function sendAjax(path, data, method = 'post') {
  * @param {String} method тип запроса
  * @return {Promise<*>}
  */
-async function sendAjaxForm(path, formData, method = 'post') {
-    return $.ajax({
-        url: path,
-        method: method,
-        contentType: false,
-        processData: false,
-        data: formData,
-        success: function(response) {
-            return response.data;
-        },
-        error: function(error) {
-            return false;
-        }
-    });
+window.sendAjaxForm = async function(path, formData, method = 'post') {
+    let errorResponse;
+    try {
+        return $.ajax({
+            url: path,
+            method: method,
+            contentType: false,
+            processData: false,
+            data: formData,
+            success: function(response) {
+                return response.data;
+            },
+            error: function(response, status, error) {
+                errorResponse = response.responseJSON;
+            }
+        });
+    } catch (e) {
+        return errorResponse;
+    }
 }
-
 
 /**
  * Запускает функцию с задержкой с защитой от повторного вызова
