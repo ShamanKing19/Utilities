@@ -248,14 +248,20 @@ abstract class Model implements \ArrayAccess
     /**
      * Получение объекта по значению определённого поля из таблицы
      *
-     * @param string $key название поля таблицы
+     * @param array|string $key название поля таблицы или массив с несколькими полями и значениями
      * @param int|string|bool $value значение
      *
      * @return static|false
      */
-    final public static function findBy(string $key, $value) : static|false
+    final public static function findBy(array|string $key, int|string|bool $value = null) : static|false
     {
-        return current(static::getList([$key => $value])) ?? false;
+        if(is_string($key) && isset($value)) {
+            return current(static::getList([$key => $value])) ?? false;
+        } elseif(is_array($key)) {
+            return current(static::getList($key)) ?? false;
+        }
+
+        return false;
     }
 
     /**
