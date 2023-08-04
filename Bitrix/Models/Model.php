@@ -359,15 +359,16 @@ abstract class Model implements \ArrayAccess
             }
         }
 
+        $select = static::$select;
         $joinList = static::getJoins();
         foreach($joinList as $join) {
             $columnName = $join->getName();
-            static::$select[$columnName] = $columnName . '.*';
+            $select[$columnName] = $columnName . '.*';
         }
 
         $params = [
             'filter' => $filter,
-            'select' => static::$select,
+            'select' => $select,
             'order' => $order,
             'runtime' => $joinList
         ];
