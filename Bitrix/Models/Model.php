@@ -13,8 +13,8 @@ namespace App\Models;
  *         Для этого нужно либо указать название таблицы:
  *         <p><b>static::$ufTable</b></p> либо переопределить метод если в названии есть какой-то id<p><b>static::getUfTableName()</b></p>
  *     </li>
- *     <li>Можно добавить JOIN (пока что только 1:1) методом
- *          <p><b>static::addJoin();</b></p>
+ *     <li>Можно добавить JOIN'ы, переопределив метод:
+ *          <p><b>static::getJoins();</b></p>
  *     </li>
  * </ol>
  *
@@ -82,9 +82,6 @@ abstract class Model implements \ArrayAccess
 
     /** @var array|string[] Стандартная сортировка */
     protected static array $order = ['ID' => 'ASC'];
-
-    /** @var array Join'ы к таблице */
-    protected static array $runtime = [];
 
     /** @var string Название таблицы, в которой содержатся значения пользовательских полей UF_* */
     protected static string $ufTable;
@@ -362,8 +359,8 @@ abstract class Model implements \ArrayAccess
             }
         }
 
-        /** @var \Bitrix\Main\ORM\Fields\Relations\Reference $join */
-        foreach(static::$runtime as $join) {
+        $joinList = static::getJoins();
+        foreach($joinList as $join) {
             $columnName = $join->getName();
             static::$select[$columnName] = $columnName . '.*';
         }
@@ -372,14 +369,9 @@ abstract class Model implements \ArrayAccess
             'filter' => $filter,
             'select' => static::$select,
             'order' => $order,
-            'runtime' => static::$runtime
+            'runtime' => $joinList
         ];
 
-        /**
-         * TODO: С JOIN'ами 1:M И M:M работает неправильно, так что когда есть JOIN с join_type="left" или "right"
-         * лучше делать всю выборку, группировать её, а потом уже ограничивать array_splice($items, $offset, $limit)
-         * Походу у битрикса есть классы для связи М:М
-         */
         if($limit > 0) {
             $params['limit'] = $limit;
         }
@@ -388,31 +380,25 @@ abstract class Model implements \ArrayAccess
         }
 
         $request = static::$table::getList($params);
+
         $items = [];
+        $joinItems = []; // Дублирующий массив для красивого присоединения полей join'ов
+
         while($item = $request->fetch()) {
             $items[$item['ID']] = $item;
-        }
-
-        // Группировка полей, полученных через runtime в массив и установка адекватных ключей
-        foreach(static::$runtime as $join) {
-            $columnName = $join->getName();
-            foreach($items as &$item) {
-                foreach($item as $key => $value) {
-                    if(strpos($key, $columnName) === false) {
-                        continue;
-                    }
-
-                    $pureKey = str_replace($columnName, '', $key);
-                    $item[$columnName][$pureKey] = $value;
-                    unset($item[$key]);
-                }
+            if($joinList) {
+                $joinItems[] = $item;
             }
         }
 
+        if(empty($items)) {
+            return [];
+        }
+
         /**
-         * Присоединение пользовательских полей
+         * Присоединение пользовательских полей UF_*
          */
-        if($items && static::getUfTableName()) {
+        if(static::getUfTableName()) {
             $itemsIdList = array_column($items, 'ID');
             if($itemsIdList) {
                 $ufValues = static::getUserFieldValues($itemsIdList);
@@ -422,7 +408,35 @@ abstract class Model implements \ArrayAccess
             }
         }
 
+        /*
+         * Присоединение join'ов
+         */
+        if($joinItems) {
+            static::attachJoins($items, $joinItems);
+            unset($joinItems);
+        }
+
         return static::makeInstanceList($items);
+    }
+
+    /**
+     * Установка join'ов по-умолчанию
+     *
+     * <pre>
+     * <b>Пример JOIN'a</b>
+     * new \Bitrix\Main\ORM\Fields\Relations\Reference(
+     *     'PROPERTIES',
+     *     \Bitrix\Sale\Internals\BasketPropertyTable::class,
+     *     \Bitrix\Main\ORM\Query\Join::on('this.ID', 'ref.BASKET_ID'),
+     *     ['join_type' => 'left']
+     * )
+     * </pre>
+     *
+     * @return array<\Bitrix\Main\ORM\Fields\Relations\Reference>
+     */
+    protected static function getJoins() : array
+    {
+        return [];
     }
 
     /**
@@ -433,27 +447,6 @@ abstract class Model implements \ArrayAccess
     protected static function getCustomFilter() : array
     {
         return [];
-    }
-
-    /**
-     * Добавление JOIN'ов к запросам (Работает корректно только со связью 1:1)
-     *
-     * @param string $columnName Название Колонки
-     * @param string $tableClass Название класса таблицы
-     * @param string $localKey Ключ из этой таблицы, по которому будут присоединяться поля
-     * @param string $foreignKey Ключ таблицы, с которой производим JOIN
-     * @param string $joinType Тип JOIN'а (inner/left/right)
-     *
-     * @return void
-     */
-    final public static function addJoin(string $columnName, string $tableClass, string $localKey, string $foreignKey, string $joinType = 'inner') : void
-    {
-        static::$runtime[] = new \Bitrix\Main\ORM\Fields\Relations\Reference(
-            $columnName,
-            $tableClass,
-            \Bitrix\Main\ORM\Query\Join::on("this.$localKey", "ref.$foreignKey"),
-            ['join_type' => $joinType]
-        );
     }
 
     /**
@@ -815,7 +808,8 @@ abstract class Model implements \ArrayAccess
     {
         $request = \Bitrix\Main\Context::getCurrent()->getRequest();
         $pageNumber = (int)$request->get(static::$pageVariable) ?: (int)$request->getPost(static::$pageVariable) ?: 1;
-        return $pageNumber > 0 ? $pageNumber : 1;
+
+        return max($pageNumber, 1);
     }
 
     /**
@@ -936,6 +930,61 @@ abstract class Model implements \ArrayAccess
             $cacheId = static::getCacheId(['ID' => $id]);
             $path = static::getCachePath();
             $cache->clean($cacheId, $path);
+        }
+    }
+
+    /**
+     * Группировка и присоединение полей со связями 1:1 и 1:М
+     *
+     * @param array $items
+     *
+     * @return void
+     */
+    private static function attachJoins(array &$items, array $joinItems) : void
+    {
+        $itemProps = [];
+        // Чистка полученных полей и присоединение связей 1:1
+        foreach(static::getJoins() as $join) {
+            $columnName = $join->getName();
+            $joinType = $join->getJoinType();
+            foreach($joinItems as $item) {
+                foreach($item as $key => $value) {
+                    /*
+                     * TODO: Придумать как скипать дефолтные ключи из оригинальной таблицы, чтобы можно было спокойно
+                     * использовать названия типа IBLOCK (сейчас нельзя т.к. попадёт, например IBLOCK_ID или IBLOCK_SECTION_ID)
+                     */
+                    if(strpos($key, $columnName) === false) {
+                        continue;
+                    }
+
+                    $pureKey = str_replace($columnName, '', $key);
+                    if($joinType === 'INNER') {
+                        $items[$item['ID']][$columnName][$pureKey] = $value;
+                    } else {
+                        $itemProps[$item['ID']][$columnName][$pureKey][] = $value;
+                    }
+                    unset($items[$item['ID']][$key]);
+                }
+            }
+        }
+
+        // Присоединение связей 1:M
+        foreach($itemProps as $itemId => $joinValues) {
+            foreach($joinValues as $columnName => $columnValues) {
+                foreach(current($columnValues) as $index => $value) {
+                    // Использование id в качестве ключей элементов join'a, чтобы исключить дубликаты при связи 1:M или M:M
+                    if(isset($columnValues['ID'])) {
+                        $joinItemId = $columnValues['ID'][$index];
+                    }
+                    foreach($columnValues as $fieldKey => $fieldValues) {
+                        if($joinItemId) {
+                            $items[$itemId][$columnName][$joinItemId][$fieldKey] = $columnValues[$fieldKey][$index];
+                        } else {
+                            $items[$itemId][$columnName][$index][$fieldKey] = $columnValues[$fieldKey][$index];
+                        }
+                    }
+                }
+            }
         }
     }
 
