@@ -161,13 +161,36 @@ abstract class IblockModel implements \ArrayAccess
     }
 
     /**
+     * Обновление полей
+     *
+     * @param array $fields Стандартные поля
+     * @param array $props Свойства элемента инфоблока (ключ - символьный код свойства)
+     *
+     * @return bool
+     */
+    public function update(array $fields, array $props = []) : bool
+    {
+        return static::updateById($this->getId(), $fields, $props);
+    }
+
+    /**
+     * Удаление элемента
+     *
+     * @return bool
+     */
+    public function delete() : bool
+    {
+        return static::deleteById($this->getId());
+    }
+
+    /**
      * Получение элемента по id
      *
      * @param int $id ID элемента инфоблока
      *
      * @return static|false
      */
-    final public static function find(int $id)
+    final public static function find(int $id) : static|false
     {
         if(static::$instanceList[$id]) {
             return static::$instanceList[$id];
@@ -294,6 +317,72 @@ abstract class IblockModel implements \ArrayAccess
         }
 
         return $items;
+    }
+
+    /**
+     * Удаление элемента по id
+     *
+     * @param int $id ID Элемента инфоблока
+     *
+     * @return bool
+     */
+    public static function deleteById(int $id) : bool
+    {
+        return \CIBlockElement::delete($id);
+    }
+
+    /**
+     * Обновление элемента инфоблока
+     *
+     * @param int $id ID элемента инфоблока
+     * @param array $fields Стандартные поля
+     * @param array $props Свойства элемента инфоблока (ключ - символьный код свойства)
+     *
+     * @return bool
+     */
+    public static function updateById(int $id, array $fields, array $props = []) : bool
+    {
+        $element = new \CIBlockElement();
+        if($props) {
+            $fields['PROPERTY_VALUES'] = $props;
+        }
+
+        return $element->update($id, $fields);
+    }
+
+    /**
+     * Создание элемента инфоблока
+     *
+     * @param array $fields Стандартные поля
+     * @param array $props Свойства элемента инфоблока (ключ - символьный код свойства)
+     *
+     * @return self|false
+     *
+     * @throws \Exception
+     */
+    public static function create(array $fields, array $props = [])
+    {
+        $element = new \CIBlockElement();
+
+        if(empty($fields['NAME'])) {
+            throw new \Exception('Не указано название элемента');
+        }
+
+        $iblockId = static::getIblockId();
+        $fields['IBLOCK_ID'] = $iblockId;
+        if(empty($fields['CODE'])) {
+            $fields['CODE'] = $element->generateMnemonicCode($fields['NAME'], $iblockId);
+        }
+        if($props) {
+            $fields['PROPERTY_VALUES'] = $props;
+        }
+
+        $elementId = $element->add($fields);
+        if(empty($elementId)) {
+            return false;
+        }
+
+        return static::find($elementId);
     }
 
     /**
@@ -597,7 +686,8 @@ abstract class IblockModel implements \ArrayAccess
     {
         $request = \Bitrix\Main\Context::getCurrent()->getRequest();
         $pageNumber = (int)$request->get(static::$pageVariable) ?: (int)$request->getPost(static::$pageVariable) ?: 1;
-        return $pageNumber > 0 ? $pageNumber : 1;
+
+        return max($pageNumber, 1);
     }
 
     /**
@@ -622,7 +712,7 @@ abstract class IblockModel implements \ArrayAccess
 
     /**
      *
-     * Значения свойства для фильтра
+     * Значения свойств для фильтра
      *
      */
 
@@ -726,8 +816,7 @@ abstract class IblockModel implements \ArrayAccess
         global $DB;
         $tableName = 'b_iblock_element_prop_m' . static::getIblockId();
         $connection = \Bitrix\Main\Application::getConnection();
-        $tableExists = $connection->isTableExists($tableName);
-        if(!$tableExists) {
+        if(!$connection->isTableExists($tableName)) {
             $tableName = 'b_iblock_element_property';
         }
 
@@ -766,8 +855,7 @@ abstract class IblockModel implements \ArrayAccess
         global $DB;
         $tableName = 'b_iblock_element_prop_s' . static::getIblockId();
         $connection = \Bitrix\Main\Application::getConnection();
-        $tableExists = $connection->isTableExists($tableName);
-        if(!$tableExists) {
+        if(!$connection->isTableExists($tableName)) {
             return [];
         }
 
