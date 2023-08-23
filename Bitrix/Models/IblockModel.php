@@ -12,7 +12,8 @@ use App\Tools\Log;
  * <ol>
  *     <li>Унаследоваться от данного класса</li>
  *     <li>Переопределить "<b>protected static string $iblockCode;</b>"</li>
- *     <li>Если нужно инфоблок является торговым каталогом, то устанавливаем "<b>protected static bool $isCatalog = true;</b>"</li>
+ *     <li>Если инфоблок является торговым каталогом, можно добавить информацию о товаре "<b>protected static bool $addCatalogInfo = true;</b>"</li>
+ *     <li>Если инфоблок является торговым каталогом, можно добавить информацию об остатках на складе "<b>protected static bool $addStoreInfo = true;</b>"</li>
  *     <li>Если нужно использовать кэш, то установить  "<b>protected static bool $useCache = true;</b>"</li>
  *     <li>Вызвать "<b>static::registerCacheEvents();</b>" в init.php, если включён кэш</li>
  *     <li>Можно добавить коллбэки, которые будут вызваны при очистке кэша методом <b>static::addClearCacheCallback();</b></li>
@@ -50,8 +51,11 @@ abstract class IblockModel implements \ArrayAccess
     /** @var string Символьный код инфоблока */
     protected static string $iblockCode;
 
-    /** @var bool Является ли инфоблок торговым каталогом */
-    protected static bool $isCatalog = false;
+    /** @var bool Добавлять ли к элементам информацию о товарах (только для "Торгового каталога") */
+    protected static bool $addCatalogInfo = false;
+
+    /** @var bool Добавлять ли к элементам информацию об остатках на складе (только для "Торгового каталога") */
+    protected static bool $addStoreInfo = false;
 
     /**
      * Служебные поля
@@ -120,12 +124,24 @@ abstract class IblockModel implements \ArrayAccess
     /** @var array Свойства */
     protected array $props;
 
+    /** @var array Информация о товаре */
+    protected array $catalogInfo;
 
-    protected function __construct(int $id, array $fields, array $props = [])
+    /** @var array Информация о наличии товара на складах */
+    protected array $storeAmount;
+
+
+    protected function __construct(int $id, array $fields, array $props = [], array $catalogInfo = [], array $storeAmount = [])
     {
         $this->id = $id;
         $this->fields = $fields;
         $this->props = $props;
+        if($catalogInfo) {
+            $this->catalogInfo = $catalogInfo;
+        }
+        if($storeAmount) {
+            $this->storeAmount = $storeAmount;
+        }
     }
 
     /**
@@ -147,6 +163,13 @@ abstract class IblockModel implements \ArrayAccess
     {
         $fields = $this->fields;
         $fields['PROPERTIES'] = $this->props;
+        if(isset($this->catalogInfo)) {
+            $fields['CATALOG_INFO'] = $this->catalogInfo;
+        }
+        if(isset($this->storeAmount)) {
+            $fields['STORE_INFO'] = $this->storeAmount;
+        }
+
         return $fields;
     }
 
@@ -158,6 +181,58 @@ abstract class IblockModel implements \ArrayAccess
     final public function getProps() : array
     {
         return $this->props;
+    }
+
+    /**
+     * Получение значения поля
+     *
+     * @param string $key Символьный код поля
+     *
+     * @return mixed
+     */
+    final public function getField(string $key) : mixed
+    {
+        return $this->fields[$key];
+    }
+
+    /**
+     * Получение значения свойства
+     *
+     * @param string $key Символьный код свойства
+     *
+     * @return mixed
+     */
+    final public function getProperty(string $key) : mixed
+    {
+        if(empty($this->props[$key])) {
+            return null;
+        }
+
+        $property = $this->props[$key];
+        if($property['PROPERTY_TYPE'] === 'L') {
+            return [
+                'VALUE' => $property['VALUE'],
+                'VALUE_ENUM' => $property['VALUE_ENUM'],
+                'VALUE_ENUM_ID' => $property['VALUE_ENUM_ID'],
+                'VALUE_XML_ID' => $property['VALUE_XML_ID'],
+            ];
+        }
+
+        $unserializedValue = unserialize($property['VALUE']);
+        return $unserializedValue === false ? $property['VALUE'] : $unserializedValue;
+    }
+
+    /**
+     * Установка значения полю
+     *
+     * @param string $key Символьный код поля
+     * @param mixed $value Значение поля
+     *
+     * @return void
+     */
+    final public function setField(string $key, $value) : void
+    {
+        $this->fields[$key] = $value;
     }
 
     /**
@@ -181,6 +256,34 @@ abstract class IblockModel implements \ArrayAccess
     public function delete() : bool
     {
         return static::deleteById($this->getId());
+    }
+
+    /**
+     * Получение информации о товаре
+     *
+     * @return array
+     */
+    public function getCatalogInfo() : array
+    {
+        if(isset($this->catalogInfo)) {
+            return $this->catalogInfo;
+        }
+
+        return $this->catalogInfo = current(static::getCatalogListInfo([$this->getId()])) ?: [];
+    }
+
+    /**
+     * Получение информации об остатках на складе
+     *
+     * @return array<array> Массивы складов со структурой \Bitrix\Catalog\StoreTable и информацией о наличии
+     */
+    public function getStoreInfo() : array
+    {
+        if(isset($this->storeAmount)) {
+            return $this->storeAmount;
+        }
+
+        return $this->storeAmount = current(static::getStoreListInfo([$this->getId()])) ?: [];
     }
 
     /**
@@ -282,7 +385,9 @@ abstract class IblockModel implements \ArrayAccess
 
         $request = \CIBlockElement::getList($order, $filter, false, $navStartParams, ['*']);
 
+        /* Получение полей и свойств */
         $items = [];
+        $itemsIdList = [];
         while($item = $request->getNextElement()) {
             $fields = $item->getFields();
             $itemId = $fields['ID'];
@@ -292,31 +397,52 @@ abstract class IblockModel implements \ArrayAccess
                 }
             }
 
+            $itemsIdList[] = $itemId;
             if(static::$instanceList[$itemId]) {
-                $items[$itemId] = static::$instanceList[$itemId];
                 continue;
             }
 
-            $props = $item->getProperties();
-            $instance = new static($itemId, $fields, $props);
-            $items[$itemId] = $instance;
+            $items[$itemId] = [
+                'FIELDS' => $fields,
+                'PROPERTIES' => $item->getProperties()
+            ];
         }
 
-        if(static::$isCatalog) {
-            $catalogRequest = \Bitrix\Catalog\ProductTable::getList(['filter' => ['ID' => array_keys($items)]]);
-            while($catalogItem = $catalogRequest->fetch()) {
-                $items[$catalogItem['ID']]['PRODUCT_INFO'] = $catalogItem;
+        /* Получение информации о товаре */
+        if(static::$addCatalogInfo && $itemsIdList) {
+            $catalogInfoList = static::getCatalogListInfo($itemsIdList);
+            foreach($catalogInfoList as $catalogItem) {
+                $items[$catalogItem['ID']]['CATALOG_INFO'] = $catalogItem;
             }
+
+            unset($catalogInfoList);
         }
 
-        foreach($items as $item) {
-            $itemId = $item['ID'];
-            if(empty(static::$instanceList[$itemId])) {
-                static::$instanceList[$itemId] = $item;
+        /* Получение информации о наличии товара на складах */
+        if(static::$addStoreInfo && $itemsIdList) {
+            $amountList = static::getStoreListInfo($itemsIdList);
+            foreach($itemsIdList as $itemId) {
+                $items[$itemId]['STORE_INFO'] = $amountList[$itemId] ?: [];
             }
+
+            unset($amountList);
         }
 
-        return $items;
+        $result = [];
+        foreach($itemsIdList as $itemId) {
+            $item = $items[$itemId];
+            if(empty($item)) {
+                $result[$itemId] = static::$instanceList[$itemId];
+                continue;
+            }
+
+            $instance = new static($itemId, $item['FIELDS'], $item['PROPERTIES'] ?? [], $item['CATALOG_INFO'] ?? [], $item['STORE_INFO'] ?? []);
+            static::$instanceList[$itemId] = $instance;
+            $result[$itemId] = $instance;
+        }
+
+        unset($items);
+        return $result;
     }
 
     /**
@@ -394,16 +520,24 @@ abstract class IblockModel implements \ArrayAccess
      */
     final protected static function makeInstanceList(array $items) : array
     {
-        return array_map(static function($item) {
-            $itemId = $item['ID'];
+        return array_map(static function($fields) {
+            $itemId = $fields['ID'];
             if(static::$instanceList[$itemId]) {
                 return static::$instanceList[$itemId];
             }
 
-            $props = $item['PROPERTIES'];
-            unset($item['PROPERTIES']);
+            $props = $fields['PROPERTIES'];
+            unset($fields['PROPERTIES']);
 
-            $instance = new static($itemId, $item, $props);
+            if($fields['CATALOG_INFO']) {
+                unset($fields['CATALOG_INFO']);
+            }
+
+            if($fields['STORE_INFO']) {
+                unset($fields['STORE_INFO']);
+            }
+
+            $instance = new static($itemId, $fields, $props);
             static::$instanceList[$itemId] = $instance;
             return $instance;
         }, $items);
@@ -885,6 +1019,80 @@ abstract class IblockModel implements \ArrayAccess
         }
 
         return $propertyValueList;
+    }
+
+    /**
+     * Получение информации о товарах
+     *
+     * @param array $productIdList
+     *
+     * @return array
+     *
+     * <pre>
+     * [
+     *     PRODUCT_ID_1 => Массив со структурой таблицы \Bitrix\Catalog\ProductTable,
+     *     PRODUCT_ID_2 => ...
+     * ]
+     * </pre>
+     */
+    final public static function getCatalogListInfo(array $productIdList = []) : array
+    {
+        $params = [];
+        if($productIdList) {
+            $params['filter'] = ['ID' => $productIdList];
+        }
+
+        $request = \Bitrix\Catalog\ProductTable::getList($params);
+
+        $items = [];
+        while($item = $request->fetch()) {
+            $items[$item['ID']] = $item;
+        }
+
+        return $items;
+    }
+
+    /**
+     * Получение информации о наличии товара на складах
+     *
+     * @param array $productIdList
+     *
+     * @return array
+     *
+     * <pre>
+     * [
+     *     PRODUCT_ID_1 => [
+     *         STORE_ID_1 => [Массив со структурой таблицы \Bitrix\Catalog\StoreTable],
+     *         STORE_ID_2 => [Массив со структурой таблицы \Bitrix\Catalog\StoreTable],
+     *         STORE_ID_3 => [Массив со структурой таблицы \Bitrix\Catalog\StoreTable]
+     *     ],
+     *     PRODUCT_ID_2 => [...]
+     * ]
+     * </pre>
+     */
+    final public static function getStoreListInfo(array $productIdList) : array
+    {
+        $storeRequest = \Bitrix\Catalog\StoreTable::getList([
+            'filter' => ['ACTIVE' => 'Y'],
+            'select' => ['ID', 'NAME' => 'TITLE', 'CODE', 'ACTIVE', 'ADDRESS', 'DESCRIPTION', 'XML_ID', 'IS_DEFAULT']
+        ]);
+
+        $amountList = [];
+        while($store = $storeRequest->fetch()) {
+            $store['QUANTITY'] = 0;
+            $store['RESERVED'] = 0;
+            foreach($productIdList as $productId) {
+                $amountList[$productId][$store['ID']] = $store;
+            }
+        }
+
+        $amountRequest = \Bitrix\Catalog\StoreProductTable::getList(['filter' => ['PRODUCT_ID' => $productIdList]]);
+        while($amount = $amountRequest->fetch()) {
+            $amountList[$amount['PRODUCT_ID']][$amount['STORE_ID']]['QUANTITY'] = $amount['AMOUNT'];
+            $amountList[$amount['PRODUCT_ID']][$amount['STORE_ID']]['RESERVED'] = $amount['QUANTITY_RESERVED'];
+        }
+
+        return $amountList;
     }
 
     /**
