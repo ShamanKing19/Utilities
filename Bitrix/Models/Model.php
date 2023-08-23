@@ -223,10 +223,12 @@ abstract class Model implements \ArrayAccess
 
     /**
      * Удаление записи из базы
+     *
+     * @return bool
      */
-    final public function delete() : void
+    final public function delete() : bool
     {
-        static::deleteById($this->getId());
+        return static::deleteById($this->getId());
     }
 
     /**
@@ -512,10 +514,15 @@ abstract class Model implements \ArrayAccess
      *
      * @param int $id id элемента
      */
-    final public static function deleteById(int $id) : void
+    final public static function deleteById(int $id) : bool
     {
-        static::$table::delete($id);
-        static::clearCache($id);
+        $result = static::$table::delete($id);
+        if($result->isSuccess()) {
+            static::clearCache($id);
+            return true;
+        }
+
+        return false;
     }
 
     /**
