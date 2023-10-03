@@ -1,8 +1,6 @@
 <?php
 namespace App\Models;
 
-use App\Tools\Log;
-
 \Bitrix\Main\Loader::includeModule('iblock');
 
 /**
@@ -73,6 +71,12 @@ abstract class IblockModel implements \ArrayAccess
     /** @var array Массив с символьными кодами и id инфоблоков */
     public static array $iblockCodeIdMap = [];
 
+    /** @var string Ошибка при создании записи */
+    private static string $creationError;
+
+    /** @var string Папка с загрузками по умолчанию */
+    protected static string $uploadDir = 'upload';
+
     /**
      * Кэширование
      */
@@ -130,6 +134,9 @@ abstract class IblockModel implements \ArrayAccess
     /** @var array Информация о наличии товара на складах */
     protected array $storeAmount;
 
+    /** @var mixed Свойства и значения, которые будут перезаписаны в БД при вызове метода save() */
+    private array $propsToUpdate = [];
+
 
     protected function __construct(int $id, array $fields, array $props = [], array $catalogInfo = [], array $storeAmount = [])
     {
@@ -152,6 +159,98 @@ abstract class IblockModel implements \ArrayAccess
     final public function getId() : int
     {
         return $this->id;
+    }
+
+    /**
+     * Получение названия
+     *
+     * @return string
+     */
+    final public function getName() : string
+    {
+        return $this->fields['NAME'] ?? '';
+    }
+
+    /**
+     * Получение ссылки на детальную страницу
+     *
+     * @return string
+     */
+    final public function getLink() : string
+    {
+        return $this->fields['DETAIL_PAGE_URL'] ?? '';
+    }
+
+    /**
+     * Получение превью картинки товара
+     *
+     * @param int $width ширина
+     * @param int $height длина
+     *
+     * @return array
+     */
+    public function getPreviewImage(int $width = 0, int $height = 0): array
+    {
+        $imageId = (int)$this->fields['PREVIEW_PICTURE'];
+        if(empty($imageId)) {
+            return [
+                'SRC' => '',
+                'WIDTH' => $width,
+                'HEIGHT' => $height
+            ];
+        }
+
+        if($width === 0 || $height === 0) {
+            $image = \Bitrix\Main\FileTable::getById($imageId)->fetch();
+            return [
+                'SRC' => '/' . implode('/', [static::$uploadDir, $image['SUBDIR'], $image['FILE_NAME']]),
+                'WIDTH' => $image['WIDTH'],
+                'HEIGHT' => $image['HEIGHT']
+            ];
+        }
+
+        $image = \CFile::resizeImageGet($imageId, ['width' => $width, 'height' => $height], BX_RESIZE_IMAGE_PROPORTIONAL, true);
+        return [
+            'SRC' => $image['src'],
+            'WIDTH' => $image['width'],
+            'HEIGHT' => $image['height']
+        ];
+    }
+
+    /**
+     * Получение детальной картинки товара
+     *
+     * @param int $width ширина
+     * @param int $height длина
+     *
+     * @return array
+     */
+    public function getDetailImage(int $width = 0, int $height = 0): array
+    {
+        $imageId = (int)$this->fields['DETAIL_PICTURE'];
+        if(empty($imageId)) {
+            return [
+                'SRC' => '',
+                'WIDTH' => $width,
+                'HEIGHT' => $height
+            ];
+        }
+
+        if($width === 0 || $height === 0) {
+            $image = \Bitrix\Main\FileTable::getById($imageId)->fetch();
+            return [
+                'SRC' => $image['SRC'],
+                'WIDTH' => $image['SRC'],
+                'HEIGHT' => $image['SRC']
+            ];
+        }
+
+        $image = \CFile::resizeImageGet($imageId, ['width' => $width, 'height' => $height], BX_RESIZE_IMAGE_PROPORTIONAL, true);
+        return [
+            'SRC' => $image['src'],
+            'WIDTH' => $image['width'],
+            'HEIGHT' => $image['height']
+        ];
     }
 
     /**
@@ -233,6 +332,141 @@ abstract class IblockModel implements \ArrayAccess
     final public function setField(string $key, $value) : void
     {
         $this->fields[$key] = $value;
+    }
+
+    /**
+     * Установка значения свойства для последующего обновления в БД
+     *
+     * @param string $propertyCode Символьный код свойства
+     * @param mixed $value Новое значение свойства (Для типа "Список" нужно указать ID(обязательно int), либо XML_ID(обязательно string) значения)
+     *
+     * @return bool
+     */
+    final public function setProperty(string $propertyCode, $value) : bool
+    {
+        $property = $this->props[$propertyCode];
+        if($property['PROPERTY_TYPE'] === \Bitrix\Iblock\PropertyTable::TYPE_LIST) {
+            return $this->setListProperty($propertyCode, $value);
+        }
+
+        if($property['PROPERTY_TYPE'] === \Bitrix\Iblock\PropertyTable::TYPE_FILE) {
+            return $this->setFileProperty($propertyCode, $value);
+        }
+
+        $this->props[$propertyCode]['VALUE'] = $value;
+        $this->propsToUpdate[$propertyCode] = $value;
+
+        return true;
+    }
+
+    /**
+     * Установка значения свойства типа "Список" для последующего обновления в БД
+     *
+     * @param string $propertyCode Символьный код свойства
+     * @param mixed $value ID(обязательно int), либо XML_ID(обязательно string), а для множественного свойства всё то же, но в массиве
+     *
+     * @return bool
+     */
+    final private function setListProperty(string $propertyCode, $value) : bool
+    {
+        $property = $this->props[$propertyCode];
+        $isMultiple = $property['MULTIPLE'] === 'Y';
+        $filter = ['PROPERTY_ID' => $property['ID']];
+        if($isMultiple) {
+            $value = is_array($value) ? $value : [$value];
+            if(array_filter($value, static fn($val) => is_numeric($val))) {
+                $filter['ID'] = $value;
+            } elseif(array_filter($value, static fn($val) => is_string($val))) {
+                $filter['XML_ID'] = $value;
+            } else {
+                return false;
+            }
+
+        } elseif(is_numeric($value)) {
+            $filter['ID'] = $value;
+        } elseif(is_string($value)) {
+            $filter['XML_ID'] = $value;
+        } else {
+            return false;
+        }
+
+        $listProperty = \Bitrix\Iblock\PropertyEnumerationTable::getList([
+            'filter' => $filter,
+            'select' => ['ID', 'VALUE', 'XML_ID']
+        ])->fetchAll();
+        if(empty($listProperty)) {
+            return false;
+        }
+
+        if($isMultiple) {
+            $this->props[$propertyCode]['VALUE'] = array_column($listProperty, 'VALUE');
+            $this->props[$propertyCode]['VALUE_ENUM'] = array_column($listProperty, 'VALUE');
+            $this->props[$propertyCode]['VALUE_ENUM_ID'] = array_column($listProperty, 'ID');
+            $this->props[$propertyCode]['VALUE_XML_ID'] = array_column($listProperty, 'XML_ID');
+            $this->propsToUpdate[$propertyCode] = array_column($listProperty, 'ID');
+        } else {
+            $this->props[$propertyCode]['VALUE'] = current($listProperty)['VALUE'];
+            $this->props[$propertyCode]['VALUE_ENUM'] = current($listProperty)['VALUE_ENUM'];
+            $this->props[$propertyCode]['VALUE_ENUM_ID'] = current($listProperty)['VALUE_ENUM_ID'];
+            $this->props[$propertyCode]['VALUE_XML_ID'] = current($listProperty)['VALUE_XML_ID'];
+            $this->propsToUpdate[$propertyCode] = current($listProperty)['ID'];
+        }
+
+        return true;
+    }
+
+    /**
+     * Установка значения свойства типа "файл" для последующего обновления в БД
+     *
+     * @param string $propertyCode Символьный код свойства
+     * @param int|array<int>|array<array> $value Массив с id файлов, id файла или массив, полученный через \CFile::makeFileArray()
+     *
+     * @return bool
+     */
+    final private function setFileProperty(string $propertyCode, $value) : bool
+    {
+        if(empty($value)) {
+            $this->propsToUpdate[$propertyCode] = ['VALUE' => '', 'DESCRIPTION' => ''];
+            $this->props[$propertyCode]['VALUE'] = [];
+            return true;
+        }
+
+        if(is_numeric($value)) {
+            $this->propsToUpdate[$propertyCode] = ['VALUE' => \CFile::makeFileArray($value), 'DESCRIPTION' => ''];
+            $this->props[$propertyCode]['VALUE'] = $value;
+            return true;
+        }
+
+        if(is_array($value)) {
+            $this->propsToUpdate[$propertyCode] = [];
+            $this->props[$propertyCode]['VALUE'] = [];
+            foreach($value as $fileId) {
+                $fileArray = is_int($fileId) ? \CFile::makeFileArray($fileId) : $fileId;
+                if($fileArray) {
+                    $this->propsToUpdate[$propertyCode][] = ['VALUE' => $fileArray, 'DESCRIPTION' => ''];
+                    $this->props[$propertyCode]['VALUE'][] = $fileId;
+                }
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Сохранение объекта в базу, либо обновление, если он уже есть
+     * <p><b>Будут обновлены ВСЕ стандартные поля и свойства, установленные через setProperty()</b></p>
+     *
+     * @return static|bool
+     */
+    public function save()
+    {
+        if((int)$this->fields['ID']) {
+            return static::updateById((int)$this->fields['ID'], $this->fields, $this->propsToUpdate);
+        }
+
+        return static::create($this->fields, $this->props, $this->catalogInfo ?? []);
     }
 
     /**
@@ -459,6 +693,7 @@ abstract class IblockModel implements \ArrayAccess
 
     /**
      * Обновление элемента инфоблока
+     * TODO: Добавить возможность обновления значений товара
      *
      * @param int $id ID элемента инфоблока
      * @param array $fields Стандартные поля
@@ -470,7 +705,8 @@ abstract class IblockModel implements \ArrayAccess
     {
         $element = new \CIBlockElement();
         if($props) {
-            $fields['PROPERTY_VALUES'] = $props;
+            $iblockId = static::getIblockId();
+            \CIBlockElement::setPropertyValuesEx($id, $iblockId, $props);
         }
 
         return $element->update($id, $fields);
@@ -479,23 +715,25 @@ abstract class IblockModel implements \ArrayAccess
     /**
      * Создание элемента инфоблока
      *
-     * @param array $fields Стандартные поля
-     * @param array $props Свойства элемента инфоблока (ключ - символьный код свойства)
+     * @param array $fields Стандартные поля элемента инфоблока
+     * @param array $props Свойства элемента инфоблока (ключ - символьный код свойства) ['KEY' => 'VALUE']]
+     * @param array $catalogInfo Свойства товара // TODO: Implement
      *
-     * @return self|false
+     *
+     * @return static|false
      *
      * @throws \Exception
      */
-    public static function create(array $fields, array $props = [])
+    public static function create(array $fields, array $props = [], array $catalogInfo = [])
     {
-        $element = new \CIBlockElement();
-
         if(empty($fields['NAME'])) {
             throw new \Exception('Не указано название элемента');
         }
 
+        $element = new \CIBlockElement();
         $iblockId = static::getIblockId();
         $fields['IBLOCK_ID'] = $iblockId;
+
         if(empty($fields['CODE'])) {
             $fields['CODE'] = $element->generateMnemonicCode($fields['NAME'], $iblockId);
         }
@@ -505,10 +743,40 @@ abstract class IblockModel implements \ArrayAccess
 
         $elementId = $element->add($fields);
         if(empty($elementId)) {
+            static::$creationError = $element->LAST_ERROR;
             return false;
         }
 
         return static::find($elementId);
+    }
+
+    /**
+     * Получение последней ошибки при создании элемента
+     *
+     * @return string
+     */
+    public static function getCreationError() : string
+    {
+        if(isset(static::$creationError)) {
+            return static::$creationError;
+        }
+
+        return '';
+    }
+
+    /**
+     * Создание объекта модели
+     *
+     * @param array $fields Стандартные поля элемента инфоблока
+     * @param array $props Свойства элемента инфоблока со структурой \CIBlockElement::getList()->getNextElement()->getProperties();
+     * @param array $catalogInfo Свойства товара
+     * @param array $storeAmount Наличие товара на складах
+     *
+     * @return static
+     */
+    public static function makeInstance(array $fields, array $props = [], array $catalogInfo = [], array $storeAmount = [])
+    {
+        return new static((int)$fields['ID'], $fields, $props, $catalogInfo, $storeAmount);
     }
 
     /**
@@ -537,9 +805,7 @@ abstract class IblockModel implements \ArrayAccess
                 unset($fields['STORE_INFO']);
             }
 
-            $instance = new static($itemId, $fields, $props);
-            static::$instanceList[$itemId] = $instance;
-            return $instance;
+            return static::$instanceList[$itemId] = static::makeInstance($fields, $props);
         }, $items);
     }
 
@@ -703,10 +969,9 @@ abstract class IblockModel implements \ArrayAccess
      */
     final public static function getPagination() : array
     {
-        global $APPLICATION;
         $currentPage = static::getCurrentPage();
         $lastPageNumber = static::getLastPage();
-        $currentUri = $APPLICATION->GetCurUri();
+        $currentUri = $GLOBALS['APPLICATION']->GetCurUri();
         $uri = new \Bitrix\Main\Web\Uri($currentUri);
         $itemsCount = static::getItemsCount();
 
@@ -852,6 +1117,8 @@ abstract class IblockModel implements \ArrayAccess
 
     /**
      * Получение списка свойств и всех существующих значений
+     *
+     * @param array $filter
      *
      * @return array
      */
@@ -1022,6 +1289,12 @@ abstract class IblockModel implements \ArrayAccess
     }
 
     /**
+     *
+     * Получение информации о товаре
+     *
+     */
+
+    /**
      * Получение информации о товарах
      *
      * @param array $productIdList
@@ -1101,7 +1374,8 @@ abstract class IblockModel implements \ArrayAccess
      *
      */
 
-    public function offsetSet($offset, $value) {
+    public function offsetSet($offset, $value)
+    {
         if(is_null($offset)) {
             $this->fields[] = $value;
         } else {
@@ -1109,15 +1383,18 @@ abstract class IblockModel implements \ArrayAccess
         }
     }
 
-    public function offsetExists($offset) {
+    public function offsetExists($offset)
+    {
         return isset($this->fields[$offset]);
     }
 
-    public function offsetUnset($offset) {
+    public function offsetUnset($offset)
+    {
         unset($this->fields[$offset]);
     }
 
-    public function offsetGet($offset) {
+    public function offsetGet($offset)
+    {
         return $this->fields[$offset] ?? $this->props[$offset] ?? null;
     }
 }
