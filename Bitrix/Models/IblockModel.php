@@ -10,8 +10,10 @@ namespace App\Models;
  * <ol>
  *     <li>Унаследоваться от данного класса</li>
  *     <li>Переопределить "<b>protected static string $iblockCode;</b>"</li>
- *     <li>Если инфоблок является торговым каталогом, можно добавить информацию о товаре "<b>protected static bool $addCatalogInfo = true;</b>"</li>
- *     <li>Если инфоблок является торговым каталогом, можно добавить информацию об остатках на складе "<b>protected static bool $addStoreInfo = true;</b>"</li>
+ *     <li>Если инфоблок является торговым каталогом, можно сразу подгрузить информацию о товаре "<b>protected static bool $addCatalogInfo = true;</b>"</li>
+ *     <li>Если инфоблок является торговым каталогом, можно сразу подгрузить информацию об остатках на складе "<b>protected static bool $addStoreInfo = true;</b>"</li>
+ *     <li>Если у инфоблока есть торговые предложения, можно сразу подгрузить их "<b>protected static bool $addSkuInfo = true;</b>"</li>
+ *     <li>Торговые предложения можно преобразовать к другой модели, указав "<b>protected static bool $skuModel = SomeSkuModel::class;</b>"</li>
  *     <li>Если нужно использовать кэш, то установить  "<b>protected static bool $useCache = true;</b>"</li>
  *     <li>Вызвать "<b>static::registerCacheEvents();</b>" в init.php, если включён кэш</li>
  *     <li>Можно добавить коллбэки, которые будут вызваны при очистке кэша методом <b>static::addClearCacheCallback();</b></li>
@@ -54,6 +56,12 @@ abstract class IblockModel implements \ArrayAccess
 
     /** @var bool Добавлять ли к элементам информацию об остатках на складе (только для "Торгового каталога") */
     protected static bool $addStoreInfo = false;
+
+    /** @var bool Подгружать ли торговые предложения */
+    protected static bool $addSkuInfo = false;
+
+    /** @var IblockModel|string Модель, объектами которой должны быть торговые предложения */
+    protected static string $skuModel;
 
     /**
      * Служебные поля
@@ -134,11 +142,14 @@ abstract class IblockModel implements \ArrayAccess
     /** @var array Информация о наличии товара на складах */
     protected array $storeAmount;
 
+    /** @var array Торговые предложения */
+    protected array $sku;
+
     /** @var mixed Свойства и значения, которые будут перезаписаны в БД при вызове метода save() */
     private array $propsToUpdate = [];
 
 
-    protected function __construct(int $id, array $fields, array $props = [], array $catalogInfo = [], array $storeAmount = [])
+    protected function __construct(int $id, array $fields, array $props = [], array $catalogInfo = [], array $storeAmount = [], array $sku = [])
     {
         $this->id = $id;
         $this->fields = $fields;
@@ -148,6 +159,9 @@ abstract class IblockModel implements \ArrayAccess
         }
         if($storeAmount) {
             $this->storeAmount = $storeAmount;
+        }
+        if($sku) {
+            $this->sku = $sku;
         }
     }
 
@@ -521,13 +535,27 @@ abstract class IblockModel implements \ArrayAccess
     }
 
     /**
+     * Получение торговых предложений
+     *
+     * @return array<array|IblockModel>
+     */
+    public function getSkuList() : array
+    {
+        if(isset($this->sku)) {
+            return $this->sku;
+        }
+
+        return $this->sku = current(static::getSkuItemsList([$this->getId()])) ?: [];
+    }
+
+    /**
      * Получение элемента по id
      *
      * @param int $id ID элемента инфоблока
      *
-     * @return static|false
+     * @return static|null
      */
-    final public static function find(int $id) : static|false
+    final public static function find(int $id) : ?static
     {
         if(static::$instanceList[$id]) {
             return static::$instanceList[$id];
@@ -535,7 +563,7 @@ abstract class IblockModel implements \ArrayAccess
 
         $item = current(static::getList(['ID' => $id]));
         if(empty($item)) {
-            return false;
+            return null;
         }
 
         return $item;
@@ -662,6 +690,16 @@ abstract class IblockModel implements \ArrayAccess
             unset($amountList);
         }
 
+        /* Получение торговых предложений */
+        if(static::$addSkuInfo && $itemsIdList) {
+            $allSkuList = static::getSkuItemsList($itemsIdList);
+            foreach($allSkuList as $itemId => $skuList) {
+                $items[$itemId]['SKU'] = $skuList;
+            }
+
+            unset($allSkuList);
+        }
+
         $result = [];
         foreach($itemsIdList as $itemId) {
             $item = $items[$itemId];
@@ -670,7 +708,7 @@ abstract class IblockModel implements \ArrayAccess
                 continue;
             }
 
-            $instance = new static($itemId, $item['FIELDS'], $item['PROPERTIES'] ?? [], $item['CATALOG_INFO'] ?? [], $item['STORE_INFO'] ?? []);
+            $instance = new static($itemId, $item['FIELDS'], $item['PROPERTIES'] ?? [], $item['CATALOG_INFO'] ?? [], $item['STORE_INFO'] ?? [], $item['SKU'] ?? []);
             static::$instanceList[$itemId] = $instance;
             $result[$itemId] = $instance;
         }
@@ -803,6 +841,10 @@ abstract class IblockModel implements \ArrayAccess
 
             if($fields['STORE_INFO']) {
                 unset($fields['STORE_INFO']);
+            }
+
+            if($fields['SKU']) {
+                unset($fields['SKU']);
             }
 
             return static::$instanceList[$itemId] = static::makeInstance($fields, $props);
@@ -1366,6 +1408,47 @@ abstract class IblockModel implements \ArrayAccess
         }
 
         return $amountList;
+    }
+
+    /**
+     * Получение торговых предложений
+     *
+     * @param array $productIdList
+     *
+     * @return array<array> [itemId => [$sku1, $sku2, ...]]
+     */
+    final public static function getSkuItemsList(array $productIdList) : array
+    {
+        $skuListRaw = \CCatalogSKU::getOffersList($productIdList, static::getIblockId(), [], ['ID', 'PARENT_ID']); // Здесь есть PARENT_ID
+        if(empty($skuListRaw)) {
+            return [];
+        }
+
+        $productSkuMap = [];
+        $skuIdList = [];
+        foreach($skuListRaw as $skuItemList) {
+            foreach($skuItemList as $sku) {
+                $skuIdList[] = $sku['ID'];
+                $productSkuMap[$sku['ID']] = $sku['PARENT_ID'];
+            }
+        }
+
+        $skuRequest = \CIBlockElement::getList([], ['ID' => $skuIdList], false, false, ['*']);
+        $itemsList = [];
+        while($sku = $skuRequest->getNextElement()) {
+            $fields = $sku->getFields();
+            $props = $sku->getProperties();
+
+            $itemId = $productSkuMap[$fields['ID']];
+            if(isset(static::$skuModel)) {
+                $itemsList[$itemId][$fields['ID']] = static::$skuModel::makeInstance($fields, $props);
+            } else {
+                $fields['PROPERTIES'] = $props;
+                $itemsList[$itemId][$fields['ID']] = $fields;
+            }
+        }
+
+        return $itemsList;
     }
 
     /**
