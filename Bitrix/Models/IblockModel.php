@@ -1011,6 +1011,7 @@ abstract class IblockModel implements \ArrayAccess
      */
     final public static function initShowMoreButton() : void
     {
+        \CJSCore::Init(['jquery2']);
         $currentPage = static::getCurrentPage();
         $lastPage = static::getLastPage();
         $buttonClass = static::$showMoreButtonClass;
