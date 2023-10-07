@@ -23,6 +23,7 @@ namespace App\Models;
  * <h3>I. Постраничная</h3>
  * <ol>
  *     <li>Вызываем метод и натягиваем на вёрстку<p><b>static::getPagination();</b> </p></li>
+ *     <li>Если есть дефолтный фильтр, например, по региону, устанавливаем его где-нибудь в init.php<p><b>static::setDefaultFilter();</b></p></li>
  *     <li>Вызываем метод для получения элементов<p><b>static::getListByPage();</b></p></li>
  * </ol>
  *
@@ -62,6 +63,9 @@ abstract class IblockModel implements \ArrayAccess
 
     /** @var IblockModel|string Модель, объектами которой должны быть торговые предложения */
     protected static string $skuModel;
+
+    /** @var array Фильтр по умолчанию */
+    protected static array $defaultFilter = [];
 
     /**
      * Служебные поля
@@ -627,16 +631,21 @@ abstract class IblockModel implements \ArrayAccess
     /**
      * Получение элементов инфоблока
      *
-     * @param array $filter Фильтр для \CIBlockElement::getList()
+     * @param array $customFilter Фильтр для \CIBlockElement::getList()
      * @param array $order Сортировка ['KEY_1' => 'ASC', 'KEY_2' => 'DESC']
      * @param int $limit Ограничение выборки
      * @param int $page Сдвиг
      *
      * @return array<static>
      */
-    protected static function getListRaw(array $filter = [], array $order = ['ID' => 'ASC'], int $limit = 0, int $page = 0) : array
+    protected static function getListRaw(array $customFilter = [], array $order = ['ID' => 'ASC'], int $limit = 0, int $page = 0) : array
     {
+        $filter = static::$defaultFilter;
         $filter['IBLOCK_ID'] = static::getIblockId();
+        foreach($customFilter as $key => $value) {
+            $filter[$key] = $value;
+        }
+
         $navStartParams = [];
         if($limit > 0) {
             $navStartParams['nPageSize'] = $limit;
@@ -715,6 +724,18 @@ abstract class IblockModel implements \ArrayAccess
 
         unset($items);
         return $result;
+    }
+
+    /**
+     * Фильтр для выборок по умолчанию
+     *
+     * @param array $filter
+     *
+     * @return void
+     */
+    public static function setDefaultFilter(array $filter) : void
+    {
+        static::$defaultFilter = $filter;
     }
 
     /**
@@ -1108,13 +1129,18 @@ abstract class IblockModel implements \ArrayAccess
     /**
      * Подсчёт количества элементов
      *
-     * @param array $filter
+     * @param array $customFilter
      *
      * @return int
      */
-    final public static function getItemsCount(array $filter = []) : int
+    final public static function getItemsCount(array $customFilter = []) : int
     {
+        $filter = static::$defaultFilter;
         $filter['IBLOCK_ID'] = static::getIblockId();
+        foreach($customFilter as $key => $value) {
+            $filter[$key] = $value;
+        }
+        
         return \CIBlockElement::getList([], $filter, false, false, ['ID'])->selectedRowsCount();
     }
 
