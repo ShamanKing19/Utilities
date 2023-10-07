@@ -35,7 +35,7 @@ namespace App\Models;
  *         <p><b>static::$showMoreButtonClass;</b></p>
  *     </li>
  *     <li>На кнопку добавляем:
- *         <p><b>data-static::$pageVariable="static::getNextPage()";</b></p>
+ *         <p><b>data-static::$pageVariable="static::getNextPage()"</b></p>
  *     </li>
  *     <li>Вызываем метод уже после вёрстки:
  *         <p><b>static::initShowMoreButton()</b></p>
@@ -579,7 +579,7 @@ abstract class IblockModel implements \ArrayAccess
      */
     final public static function getListByPage(array $filter = [], array $order = []) : array
     {
-        return static::getList($filter, $order, static::$itemsPerPage, (static::getCurrentPage() - 1) * static::$itemsPerPage);
+        return static::getList($filter, $order, static::$itemsPerPage, static::getCurrentPage());
     }
 
     /**
@@ -588,18 +588,18 @@ abstract class IblockModel implements \ArrayAccess
      * @param array $filter Фильтр для \CIBlockElement::getList()
      * @param array $order Сортировка ['KEY_1' => 'ASC', 'KEY_2' => 'DESC']
      * @param int $limit Ограничение выборки
-     * @param int $offset Сдвиг
+     * @param int $page Страница
      *
      * @return array<static>
      */
-    public static function getList(array $filter = [], array $order = [], int $limit = 0, int $offset = 0) : array
+    public static function getList(array $filter = [], array $order = [], int $limit = 0, int $page = 0) : array
     {
         if(!static::$useCache) {
-            static::getListRaw($filter, $order, $limit, $offset);
+            static::getListRaw($filter, $order, $limit, $page);
         }
 
         $cache = \Bitrix\Main\Data\Cache::createInstance();
-        $cacheKey = static::getCacheKey($filter, $order, $limit, $offset);
+        $cacheKey = static::getCacheKey($filter, $order, $limit, $page);
         $cachePath = static::getListCachePath();
 
         // Для выборки по одному элементу свой путь для кэша, чтобы при добавлении/обновлении/удалении не очищать его
@@ -613,7 +613,7 @@ abstract class IblockModel implements \ArrayAccess
             return static::makeInstanceList($items);
         }
 
-        $items = static::getListRaw($filter, $order, $limit, $offset);
+        $items = static::getListRaw($filter, $order, $limit, $page);
         if(empty($items)) {
             return [];
         }
@@ -630,19 +630,19 @@ abstract class IblockModel implements \ArrayAccess
      * @param array $filter Фильтр для \CIBlockElement::getList()
      * @param array $order Сортировка ['KEY_1' => 'ASC', 'KEY_2' => 'DESC']
      * @param int $limit Ограничение выборки
-     * @param int $offset Сдвиг
+     * @param int $page Сдвиг
      *
      * @return array<static>
      */
-    protected static function getListRaw(array $filter = [], array $order = ['ID' => 'ASC'], int $limit = 0, int $offset = 0) : array
+    protected static function getListRaw(array $filter = [], array $order = ['ID' => 'ASC'], int $limit = 0, int $page = 0) : array
     {
         $filter['IBLOCK_ID'] = static::getIblockId();
         $navStartParams = [];
         if($limit > 0) {
-            $navStartParams['nTopCount'] = $limit;
+            $navStartParams['nPageSize'] = $limit;
         }
-        if($offset) {
-            $navStartParams['nOffset'] = $offset;
+        if($page) {
+            $navStartParams['iNumPage'] = $page;
         }
 
         $request = \CIBlockElement::getList($order, $filter, false, $navStartParams, ['*']);
@@ -1004,36 +1004,6 @@ abstract class IblockModel implements \ArrayAccess
      *
      */
 
-     /**
-     * Инициализация js для функционала "Показать ещё"
-     *
-     * @return void
-     */
-    final public static function initShowMoreButton() : void
-    {
-        \CJSCore::Init(['jquery2']);
-        $currentPage = static::getCurrentPage();
-        $lastPage = static::getLastPage();
-        $buttonClass = static::$showMoreButtonClass;
-        $wrapperClass = static::$showMoreWrapperClass;
-        $itemClass = static::$showMoreItemClass;
-        $pageVariable = static::$pageVariable;
-
-        echo "
-            <script>
-                const itemsList = new ItemsList($currentPage, $lastPage);
-                itemsList.initShowMoreButton(
-                    '$wrapperClass',
-                    '$itemClass',
-                    '$buttonClass',
-                    '$pageVariable',
-                    '$pageVariable'
-                );
-            </script>
-        ";
-    }
-
-
     /**
      * Формирование массива для пагинации
      *
@@ -1179,6 +1149,34 @@ abstract class IblockModel implements \ArrayAccess
     final public static function getLastPage() : int
     {
         return (int)ceil(static::getItemsCount() / (static::$itemsPerPage ?: 1));
+    }
+
+    /**
+     * Инициализация js для функционала "Показать ещё"
+     *
+     * @return void
+     */
+    final public static function initShowMoreButton() : void
+    {
+        \CJSCore::Init(['jquery2']);
+        $lastPage = static::getLastPage();
+        $buttonClass = static::$showMoreButtonClass;
+        $wrapperClass = static::$showMoreWrapperClass;
+        $itemClass = static::$showMoreItemClass;
+        $pageVariable = static::$pageVariable;
+
+        echo "
+            <script>
+            const itemsList = new ItemsList($lastPage);
+            itemsList.initShowMoreButton(
+                '$wrapperClass',
+                '$itemClass',
+                '$buttonClass',
+                '$pageVariable',
+                '$pageVariable'
+            );
+            </script>
+        ";
     }
 
     /**
