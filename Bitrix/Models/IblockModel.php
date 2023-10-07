@@ -1004,6 +1004,35 @@ abstract class IblockModel implements \ArrayAccess
      *
      */
 
+     /**
+     * Инициализация js для функционала "Показать ещё"
+     *
+     * @return void
+     */
+    final public static function initShowMoreButton() : void
+    {
+        $currentPage = static::getCurrentPage();
+        $lastPage = static::getLastPage();
+        $buttonClass = static::$showMoreButtonClass;
+        $wrapperClass = static::$showMoreWrapperClass;
+        $itemClass = static::$showMoreItemClass;
+        $pageVariable = static::$pageVariable;
+
+        echo "
+            <script>
+                const itemsList = new ItemsList($currentPage, $lastPage);
+                itemsList.initShowMoreButton(
+                    '$wrapperClass',
+                    '$itemClass',
+                    '$buttonClass',
+                    '$pageVariable',
+                    '$pageVariable'
+                );
+            </script>
+        ";
+    }
+
+
     /**
      * Формирование массива для пагинации
      *
