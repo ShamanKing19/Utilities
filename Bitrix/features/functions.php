@@ -158,6 +158,35 @@ function getCurrentLanguage(bool $toUpper = false): string
  * @return mixed|string
  */
 function getLogoutUrl() {
-    return \CHTTP::urlAddParams('/', ["logout" => 'yes', 'sessid' => bitrix_sessid()]);
+    return \CHTTP::urlAddParams('/', ['logout' => 'yes', 'sessid' => bitrix_sessid()]);
 }
 
+/**
+ * Генерация короткой ссылки
+ *
+ * @param string $url Ссылка, которую надо укоротить
+ * @param int $redirectStatus Статус, с которым произойдёт редирект
+ *
+ * @return string
+ */
+function getShortUrl(string $url, int $redirectStatus = 301) : string
+{
+    $shortUri = md5($url);
+    $request = \CBXShortUri::getList([], ['SHORT_URI' => $shortUri]);
+    if($request && $row = $request->fetch()) {
+        return $row['SHORT_URI'];
+    }
+
+    $id = \CBXShortUri::add([
+        'URI' => $url,
+        'SHORT_URI' => $shortUri,
+        'STATUS' => $redirectStatus,
+        'SHORT_URI_CRC' => \CBXShortUri::crc32($shortUri)
+    ]);
+
+    if($id) {
+        return $shortUri;
+    }
+
+    return '';
+}
