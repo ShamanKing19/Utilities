@@ -37,7 +37,7 @@ window.sendAjax = async function(path, data, method = 'post') {
 window.sendAjaxForm = async function(path, formData, method = 'post') {
     let errorResponse;
     try {
-        return $.ajax({
+        return await $.ajax({
             url: path,
             method: method,
             contentType: false,
