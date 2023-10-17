@@ -54,6 +54,22 @@ $requestWithFilterByEnumField = \CIBlockElement::getList([], [
     ]
 ]);
 
+/**
+ * Фильтр с подзапросом
+ */
+$productRequest = \CIBLockElement::getList([], [
+    'IBLOCK_ID' => PRODUCT_IBLOCK_ID,
+
+    // * По сути, выберутся все значения PROPERTY_CML2_LINK из отфильтрованного списка, на подобии array_column($someArray, 'PROPERTY_CML2_LINK')
+    // Можно испрользовать не только 'ID', что угодно
+    'ID' => \CIBlockElement::subQuery('PROPERTY_CML2_LINK', [
+        // Прям обычный фильтр уже для другого инфоблока
+        'IBLOCK_ID' => PRODUCT_SKU_IBLOCK_ID,
+        '>=PROPERTY_CHTO_NIBUD' => 500
+    ])
+]);
+
+
 
 // ! Только на D7 с собственными таблицами (Пример в папке DBTable)
 
