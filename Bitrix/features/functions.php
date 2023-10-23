@@ -123,9 +123,10 @@ function createIBlockElement(array $fields, array $properties) : int
  * @param string $eventName название почтового события (Типы событий)
  * @param array $fields массив со значениями, которые можно использовать в почтовом шаблоне, привязанному к почтовому событию
  * @param string $siteId название сайта (используется 's1' вместо SITE_ID, т. к. при использовании в админке SITE_ID = 'ru )
- * return $result
+ *
+ * @return \Bitrix\Main\Entity\AddResult
  */
-function sendEmail(string $eventName, array $fields, string $siteId = 's1')
+function sendEmail(string $eventName, array $fields, string $siteId = 's1') : \Bitrix\Main\Entity\AddResult
 {
     return Bitrix\Main\Mail\Event::send([
         'EVENT_NAME' => $eventName,
