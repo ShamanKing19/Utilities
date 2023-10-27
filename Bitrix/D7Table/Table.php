@@ -10,12 +10,12 @@ use Bitrix\Main\Entity\IntegerField;
 
 /* -------------------- Создание таблицы -------------------- */
 
-use App\Namespace\Table as CustomTable;
-$entity = CustomTable::getEntity();
+$table = CustomTable::class;
+$entity = $table::getEntity();
 $connection = \Bitrix\Main\Application::getConnection();
 
-if ($connection->isTableExists(CustomTable::getTableName())) {
-   return false;
+if ($connection->isTableExists($table::getTableName())) {
+    return false;
 }
 
 $entity->createDbTable();
