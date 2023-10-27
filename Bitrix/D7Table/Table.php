@@ -13,7 +13,6 @@ use Bitrix\Main\Entity\IntegerField;
 $table = CustomTable::class;
 $entity = $table::getEntity();
 $connection = \Bitrix\Main\Application::getConnection();
-
 if ($connection->isTableExists($table::getTableName())) {
     return false;
 }
