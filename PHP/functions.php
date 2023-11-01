@@ -354,8 +354,8 @@ function replaceKeys(array &$array, array $replacementList) : void
 /**
  * Вывод сообщения в терминал
  * 
- * @param string $msg сообщение для вывода
- * @param bool $newLine возврат каретки
+ * @param string $msg Сообщение
+ * @param bool $newLine Сообщение с новой строки
  * @param array $color Цвет
  */
 function consoleLog(string $msg, bool $newLine = true, array $color = '') : void
