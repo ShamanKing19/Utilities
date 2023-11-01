@@ -350,3 +350,33 @@ function replaceKeys(array &$array, array $replacementList) : void
         }
     }
 }
+
+/**
+ * Вывод сообщения в терминал
+ * 
+ * @param string $msg сообщение для вывода
+ * @param bool $newLine возврат каретки
+ * @param array $color Цвет
+ */
+function consoleLog(string $msg, bool $newLine = true, array $color = '') : void
+{
+    $colorCodes = [
+        'red' => 31,
+        'blue' => 34,
+        'green' => 32,
+        'black' => 30,
+        'cyan' => 36,
+        'purple' => 35,
+        'yellow' => 33,
+    ];
+
+    if($color) {
+        $colorCode = $colorCodes[$color];
+        if($colorCode) {
+            $msg = "\033[" . $colorCode . "m$msg\033[0m";
+        }
+    }
+
+    $endChar = $newLine ? "\n" : "\r";
+    fputs(STDOUT, $msg . $endChar);
+}
