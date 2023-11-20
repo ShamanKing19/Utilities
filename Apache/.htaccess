@@ -1,0 +1,51 @@
+Options -Indexes 
+ErrorDocument 404 /404.php
+
+<IfModule mod_php5.c>
+  php_flag allow_call_time_pass_reference 1
+  php_flag session.use_trans_sid off
+
+  #php_value display_errors 1
+
+  #php_value mbstring.internal_encoding UTF-8
+</IfModule>
+
+<IfModule mod_rewrite.c>
+  Options +FollowSymLinks
+  RewriteEngine On
+
+  # Добавление слэша в конце
+  RewriteCond %{REQUEST_URI} /+[^\.]+$
+  RewriteRule ^(.+[^/])$ %{REQUEST_URI}/ [R=301,L]
+
+  # Чистим пустой гет параметр
+  RewriteCond %{THE_REQUEST} \s[^?]*\?\s
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [QSD,L,R=301]
+
+  # Редирект с http на https
+  RewriteCond %{HTTPS} !=on
+  RewriteRule ^.*$ https://%{SERVER_NAME}%{REQUEST_URI} [R,L]
+    
+  # Редирект со старой пагинации на новую
+  RewriteCond %{QUERY_STRING} ^(.*&)?PAGEN_1=([^&]*)(&.*)?$ [NC]
+  RewriteRule ^ %{REQUEST_URI}?%1page=%2%3 [R=302,L,NE]
+
+  # Вот эта шляпа вроде бы в конце должна быть
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-l
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteCond %{REQUEST_FILENAME} !/bitrix/urlrewrite.php$
+  RewriteRule ^(.*)$ /bitrix/urlrewrite.php [L]
+  RewriteRule .* - [E=REMOTE_USER:%{HTTP:Authorization}]
+
+</IfModule>
+
+<IfModule mod_dir.c>
+  DirectoryIndex index.php index.html
+</IfModule>
+
+<IfModule mod_expires.c>
+  ExpiresActive on
+  ExpiresByType image/jpeg "access plus 3 day"
+  ExpiresByType image/gif "access plus 3 day"
+</IfModule>
