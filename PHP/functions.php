@@ -380,3 +380,35 @@ function consoleLog(string $msg, bool $newLine = true, array $color = '') : void
     $endChar = $newLine ? "\n" : "\r";
     fputs(STDOUT, $msg . $endChar);
 }
+
+/**
+ * Человеко-понятная информация о текущем потреблении памяти
+ *
+ * @return string
+ */
+function getMemoryUsage(): string
+{
+    $memory = memory_get_usage();
+    $measureList = ['B', 'KB', 'MB', 'GB', 'TB'];
+    foreach($measureList as $measure) {
+        if($memory < 1024) {
+            return round($memory) . ' ' . $measure;
+        }
+
+        $memory /= 1024;
+    }
+
+    return round($memory) . ' ' . $measure;
+}
+
+/**
+ * Чистка дублирующихся массивов
+ *
+ * @param array $array
+ *
+ * @return array
+ */
+function array_unique_nested(array $array): array
+{
+    return array_map(static fn($item) => json_decode($item, true), array_unique(array_map('json_encode', $array)));
+}
