@@ -115,14 +115,15 @@ function splitFilesList(array $filesArray) : array
 /**
  * Изменяет окончание слова в зависимости от количества позиций
  *
- * @param int $number количество
- * @param string $nominativeMessage название в именительном падеже (есть кто? что?) (1)
- * @param string $genitiveMessage название в родительном падеже (нет кого? чего?) (2-4)
- * @param string $accusativeMessage название в винительном падеже (вижу кого? что?) (5-9)
- * 
+ * @param int $number Количество
+ * @param string $nominativeMessage Название в именительном падеже (есть кто? что?) (1)
+ * @param string $genitiveMessage Название в родительном падеже (нет кого? чего?) (2-4)
+ * @param string $accusativeMessage Название в винительном падеже (вижу кого? что?) (5-9)
+ * @param bool $withNumber Добавлять ли номер
+ *
  * @return string отформатированное название
  */
-function declinateWord(int $number, string $nominativeMessage, string $genitiveMessage, string $accusativeMessage) : string
+function declinateWord(int $number, string $nominativeMessage, string $genitiveMessage, string $accusativeMessage, bool $withNumber = false) : string
 {
     $exceptions = range(11, 20);
     if($number % 10 === 1 && !in_array($number % 100, $exceptions, true)) {
@@ -133,9 +134,8 @@ function declinateWord(int $number, string $nominativeMessage, string $genitiveM
         $word = $accusativeMessage;
     }
 
-    return $word;
+    return $withNumber ? $number . ' ' . $word : $word;
 }
-
 
 /**
  * Чистим номер телефона от всего, кроме цифр
