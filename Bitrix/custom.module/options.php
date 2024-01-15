@@ -1,90 +1,71 @@
 <?php
 defined('B_PROLOG_INCLUDED') and (B_PROLOG_INCLUDED === true) or die();
-defined('ADMIN_MODULE_NAME') or define('ADMIN_MODULE_NAME', 'maycat.d7dull');
 
 use Bitrix\Main\Application;
 use Bitrix\Main\Config\Option;
 use Bitrix\Main\Localization\Loc;
-use Bitrix\Main\Text\String;
 
-if (!$USER->isAdmin()) {
-    $APPLICATION->authForm('Nope');
-}
+global $USER, $APPLICATION;
 
-$app = Application::getInstance();
-$context = $app->getContext();
-$request = $context->getRequest();
+$request = Application::getInstance()->getContext()->getRequest();
 
-Loc::loadMessages($context->getServer()->getDocumentRoot()."/bitrix/modules/main/options.php");
+Loc::loadMessages($_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/options.php');
 Loc::loadMessages(__FILE__);
 
-$tabControl = new CAdminTabControl("tabControl", array(
-    array(
-        "DIV" => "edit1",
-        "TAB" => Loc::getMessage("MAIN_TAB_SET"),
-        "TITLE" => Loc::getMessage("MAIN_TAB_TITLE_SET"),
-    ),
-));
+$moduleId = basename(__DIR__);
 
-if ((!empty($save) || !empty($restore)) && $request->isPost() && check_bitrix_sessid()) {
-    if (!empty($restore)) {
-        Option::delete(ADMIN_MODULE_NAME);
-        CAdminMessage::showMessage(array(
-            "MESSAGE" => Loc::getMessage("REFERENCES_OPTIONS_RESTORED"),
-            "TYPE" => "OK",
-        ));
-    } elseif ($request->getPost('max_image_size') && ($request->getPost('max_image_size') > 0) && ($request->getPost('max_image_size') < 100000)) {
-        Option::set(
-            ADMIN_MODULE_NAME,
-            "max_image_size",
-            $request->getPost('max_image_size')
-        );
-        CAdminMessage::showMessage(array(
-            "MESSAGE" => Loc::getMessage("REFERENCES_OPTIONS_SAVED"),
-            "TYPE" => "OK",
-        ));
-    } else {
-        CAdminMessage::showMessage(Loc::getMessage("REFERENCES_INVALID_VALUE"));
-    }
+$tabControl = new CAdminTabControl('tabControl', [
+    [
+        'DIV' => 'main',
+        'TAB' => 'Основное',
+        'TITLE' => 'Основные настройки',
+    ],
+]);
+
+/**
+ * Сохранение настроек
+ * (вынес сюда, потому что данные сначала сохранятся, а потом подставятся)
+ */
+$whatsAppPhoneOptionName = 'whatsapp_phone';
+$whatsappPhone = $request->getPost($whatsAppPhoneOptionName);
+$saveResult = false;
+if (isset($whatsappPhone)) {
+    Option::set($moduleId, $whatsAppPhoneOptionName, $whatsappPhone);
+    $saveResult = true;
 }
 
+if ($saveResult) {
+    CAdminMessage::showMessage([
+        'MESSAGE' => 'Настройки сохранены',
+        'TYPE' => 'OK', // Без этого поля можно выдать сообщение об ошибке
+    ]);
+}
+
+/**
+ * Вкладки с настройками
+ */
 $tabControl->begin();
 ?>
 
-<form method="post" action="<?=sprintf('%s?mid=%s&lang=%s', $request->getRequestedPage(), urlencode($mid), LANGUAGE_ID)?>">
-    <?php
-    echo bitrix_sessid_post();
-    $tabControl->beginNextTab();
-    ?>
+<form method="post" action="<?=$request->getRequestedPage() . '?mid=' . urlencode($moduleId) . '&lang=' . LANGUAGE_ID?>">
+    <?=bitrix_sessid_post()?>
+    <?php $tabControl->beginNextTab();?>
     <tr>
         <td width="40%">
-            <label for="max_image_size"><?=Loc::getMessage("REFERENCES_MAX_IMAGE_SIZE") ?>:</label>
+            <label for="<?=$whatsAppPhoneOptionName?>">Номер телефона WhatsApp:</label>
         <td width="60%">
             <input type="text"
-                   size="50"
-                   maxlength="5"
-                   name="max_image_size"
-                   value="<?=String::htmlEncode(Option::get(ADMIN_MODULE_NAME, "max_image_size", 500));?>"
-                   />
+                   name="<?=$whatsAppPhoneOptionName?>"
+                   value="<?=Option::get($moduleId, $whatsAppPhoneOptionName)?>"
+            />
         </td>
     </tr>
 
-    <?php
-    $tabControl->buttons();
-    ?>
+    <?php $tabControl->buttons() ?>
     <input type="submit"
            name="save"
-           value="<?=Loc::getMessage("MAIN_SAVE") ?>"
-           title="<?=Loc::getMessage("MAIN_OPT_SAVE_TITLE") ?>"
+           value="Сохранить"
            class="adm-btn-save"
-           />
-    <input type="submit"
-           name="restore"
-           title="<?=Loc::getMessage("MAIN_HINT_RESTORE_DEFAULTS") ?>"
-           onclick="return confirm('<?= AddSlashes(GetMessage("MAIN_HINT_RESTORE_DEFAULTS_WARNING")) ?>')"
-           value="<?=Loc::getMessage("MAIN_RESTORE_DEFAULTS") ?>"
-           />
-    <?php
-    $tabControl->end();
-    ?>
+    />
+    <?php $tabControl->end() ?>
 </form>

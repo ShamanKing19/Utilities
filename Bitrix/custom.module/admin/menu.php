@@ -1,27 +1,32 @@
-<?php
-defined('B_PROLOG_INCLUDED') and (B_PROLOG_INCLUDED === true) or die();
+<?php defined('B_PROLOG_INCLUDED') and (B_PROLOG_INCLUDED === true) or die();
 
-use Bitrix\Main\Localization\Loc;
+/**
+ * Документация по настройкам пункта меню
+ * @see https://dev.1c-bitrix.ru/api_help/main/general/admin.section/menu.php
+ */
 
-Loc::loadMessages(__FILE__);
+\Bitrix\Main\Localization\Loc::loadMessages(__FILE__);
 
-$aMenu = array(
-    array(
-        'parent_menu' => 'global_menu_content',
-        'sort' => 400,
-        'text' => "название",
-        'title' => "Название2",
-        'url' => 'd7dull_index.php',
-        'items_id' => 'menu_references',
-        'items' => array(
-            array(
-                'text' => "Трпр",
-                'url' => 'd7dull_index.php?param1=paramval&lang='.LANGUAGE_ID,
-                'more_url' => array('d7dull_index.php?param1=paramval&lang='.LANGUAGE_ID),
-                'title' => "Уруруру",
-            ),
-        ),
-    ),
-);
+$moduleId = basename(dirname(__DIR__));
 
-return $aMenu;
+$menu = [
+    'settings' => [
+        'parent_menu' => 'global_menu_settings',
+        'sort' => 1,
+        'text' => 'Настройки сайта',
+        'title' => 'Какое-то описание...',
+        'url' => "/bitrix/admin/settings.php?lang=ru&mid=$moduleId&mid_menu=1",
+        'icon' => 'fileman_menu_icon'
+//        'items_id' => 'menu_references', //описание подпункта, то же, что и ранее, либо другое, можно вставить сколько угодно пунктов меню
+//        'items' => [
+//            [
+//                'text' => 'Что-то 1',
+//                'url' => '/bitrix/admin/settings.php?lang=ru&mid=settings&mid_menu=1',
+//                'more_url' => ['mymodule_index.php?lang=' . LANGUAGE_ID],
+//                'title' => 'Что-то 2',
+//            ],
+//        ],
+    ],
+];
+
+return $menu;
