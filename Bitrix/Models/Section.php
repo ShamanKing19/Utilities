@@ -34,36 +34,6 @@ class Section extends Model
     }
 
     /**
-     * Получение картинки для плашки в каталоге
-     *
-     * @return File|false
-     */
-    public function getDetailImage()
-    {
-        $imageId = $this->getField('DETAIL_PICTURE');
-        if(empty($imageId)) {
-            return false;
-        }
-
-        return \App\Models\File::find($imageId);
-    }
-
-    /**
-     * Получение картинки для плашки в каталоге хэдера
-     *
-     * @return File|false
-     */
-    public function getCatalogMenuPicture()
-    {
-        $imageId = $this->getField('PICTURE');
-        if(empty($imageId)) {
-            return false;
-        }
-
-        return \App\Models\File::find($imageId);
-    }
-
-    /**
      * Получение SEO информации
      *
      * @return array

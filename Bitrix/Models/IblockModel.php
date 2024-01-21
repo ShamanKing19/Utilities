@@ -23,6 +23,7 @@ namespace App\Models;
  * <h3>I. Постраничная</h3>
  * <ol>
  *     <li>Вызываем метод и натягиваем на вёрстку<p><b>static::getPagination();</b> </p></li>
+ *     <li>Если есть дефолтный фильтр, например, по региону, устанавливаем его где-нибудь в init.php<p><b>static::setDefaultFilter();</b></p></li>
  *     <li>Вызываем метод для получения элементов<p><b>static::getListByPage();</b></p></li>
  * </ol>
  *
@@ -35,7 +36,7 @@ namespace App\Models;
  *         <p><b>static::$showMoreButtonClass;</b></p>
  *     </li>
  *     <li>На кнопку добавляем:
- *         <p><b>data-static::$pageVariable="static::getNextPage()";</b></p>
+ *         <p><b>data-static::$pageVariable="static::getNextPage()"</b></p>
  *     </li>
  *     <li>Вызываем метод уже после вёрстки:
  *         <p><b>static::initShowMoreButton()</b></p>
@@ -62,6 +63,9 @@ abstract class IblockModel implements \ArrayAccess
 
     /** @var IblockModel|string Модель, объектами которой должны быть торговые предложения */
     protected static string $skuModel;
+
+    /** @var array Фильтр по умолчанию */
+    protected static array $defaultFilter = [];
 
     /**
      * Служебные поля
@@ -579,7 +583,7 @@ abstract class IblockModel implements \ArrayAccess
      */
     final public static function getListByPage(array $filter = [], array $order = []) : array
     {
-        return static::getList($filter, $order, static::$itemsPerPage, (static::getCurrentPage() - 1) * static::$itemsPerPage);
+        return static::getList($filter, $order, static::$itemsPerPage, static::getCurrentPage());
     }
 
     /**
@@ -588,18 +592,18 @@ abstract class IblockModel implements \ArrayAccess
      * @param array $filter Фильтр для \CIBlockElement::getList()
      * @param array $order Сортировка ['KEY_1' => 'ASC', 'KEY_2' => 'DESC']
      * @param int $limit Ограничение выборки
-     * @param int $offset Сдвиг
+     * @param int $page Страница
      *
      * @return array<static>
      */
-    public static function getList(array $filter = [], array $order = [], int $limit = 0, int $offset = 0) : array
+    public static function getList(array $filter = [], array $order = [], int $limit = 0, int $page = 0) : array
     {
         if(!static::$useCache) {
-            static::getListRaw($filter, $order, $limit, $offset);
+            static::getListRaw($filter, $order, $limit, $page);
         }
 
         $cache = \Bitrix\Main\Data\Cache::createInstance();
-        $cacheKey = static::getCacheKey($filter, $order, $limit, $offset);
+        $cacheKey = static::getCacheKey($filter, $order, $limit, $page);
         $cachePath = static::getListCachePath();
 
         // Для выборки по одному элементу свой путь для кэша, чтобы при добавлении/обновлении/удалении не очищать его
@@ -613,7 +617,7 @@ abstract class IblockModel implements \ArrayAccess
             return static::makeInstanceList($items);
         }
 
-        $items = static::getListRaw($filter, $order, $limit, $offset);
+        $items = static::getListRaw($filter, $order, $limit, $page);
         if(empty($items)) {
             return [];
         }
@@ -627,22 +631,27 @@ abstract class IblockModel implements \ArrayAccess
     /**
      * Получение элементов инфоблока
      *
-     * @param array $filter Фильтр для \CIBlockElement::getList()
+     * @param array $customFilter Фильтр для \CIBlockElement::getList()
      * @param array $order Сортировка ['KEY_1' => 'ASC', 'KEY_2' => 'DESC']
      * @param int $limit Ограничение выборки
-     * @param int $offset Сдвиг
+     * @param int $page Сдвиг
      *
      * @return array<static>
      */
-    protected static function getListRaw(array $filter = [], array $order = ['ID' => 'ASC'], int $limit = 0, int $offset = 0) : array
+    protected static function getListRaw(array $customFilter = [], array $order = ['ID' => 'ASC'], int $limit = 0, int $page = 0) : array
     {
+        $filter = static::$defaultFilter;
         $filter['IBLOCK_ID'] = static::getIblockId();
+        foreach($customFilter as $key => $value) {
+            $filter[$key] = $value;
+        }
+
         $navStartParams = [];
         if($limit > 0) {
-            $navStartParams['nTopCount'] = $limit;
+            $navStartParams['nPageSize'] = $limit;
         }
-        if($offset) {
-            $navStartParams['nOffset'] = $offset;
+        if($page) {
+            $navStartParams['iNumPage'] = $page;
         }
 
         $request = \CIBlockElement::getList($order, $filter, false, $navStartParams, ['*']);
@@ -715,6 +724,18 @@ abstract class IblockModel implements \ArrayAccess
 
         unset($items);
         return $result;
+    }
+
+    /**
+     * Фильтр для выборок по умолчанию
+     *
+     * @param array $filter
+     *
+     * @return void
+     */
+    public static function setDefaultFilter(array $filter) : void
+    {
+        static::$defaultFilter = $filter;
     }
 
     /**
@@ -1108,13 +1129,18 @@ abstract class IblockModel implements \ArrayAccess
     /**
      * Подсчёт количества элементов
      *
-     * @param array $filter
+     * @param array $customFilter
      *
      * @return int
      */
-    final public static function getItemsCount(array $filter = []) : int
+    final public static function getItemsCount(array $customFilter = []) : int
     {
+        $filter = static::$defaultFilter;
         $filter['IBLOCK_ID'] = static::getIblockId();
+        foreach($customFilter as $key => $value) {
+            $filter[$key] = $value;
+        }
+        
         return \CIBlockElement::getList([], $filter, false, false, ['ID'])->selectedRowsCount();
     }
 
@@ -1149,6 +1175,34 @@ abstract class IblockModel implements \ArrayAccess
     final public static function getLastPage() : int
     {
         return (int)ceil(static::getItemsCount() / (static::$itemsPerPage ?: 1));
+    }
+
+    /**
+     * Инициализация js для функционала "Показать ещё"
+     *
+     * @return void
+     */
+    final public static function initShowMoreButton() : void
+    {
+        \CJSCore::Init(['jquery2']);
+        $lastPage = static::getLastPage();
+        $buttonClass = static::$showMoreButtonClass;
+        $wrapperClass = static::$showMoreWrapperClass;
+        $itemClass = static::$showMoreItemClass;
+        $pageVariable = static::$pageVariable;
+
+        echo "
+            <script>
+            const itemsList = new ItemsList($lastPage);
+            itemsList.initShowMoreButton(
+                '$wrapperClass',
+                '$itemClass',
+                '$buttonClass',
+                '$pageVariable',
+                '$pageVariable'
+            );
+            </script>
+        ";
     }
 
     /**

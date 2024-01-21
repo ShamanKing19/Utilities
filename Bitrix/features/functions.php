@@ -123,9 +123,10 @@ function createIBlockElement(array $fields, array $properties) : int
  * @param string $eventName название почтового события (Типы событий)
  * @param array $fields массив со значениями, которые можно использовать в почтовом шаблоне, привязанному к почтовому событию
  * @param string $siteId название сайта (используется 's1' вместо SITE_ID, т. к. при использовании в админке SITE_ID = 'ru )
- * return $result
+ *
+ * @return \Bitrix\Main\Entity\AddResult
  */
-function sendEmail(string $eventName, array $fields, string $siteId = 's1')
+function sendEmail(string $eventName, array $fields, string $siteId = 's1') : \Bitrix\Main\Entity\AddResult
 {
     return Bitrix\Main\Mail\Event::send([
         'EVENT_NAME' => $eventName,
@@ -158,6 +159,35 @@ function getCurrentLanguage(bool $toUpper = false): string
  * @return mixed|string
  */
 function getLogoutUrl() {
-    return \CHTTP::urlAddParams('/', ["logout" => 'yes', 'sessid' => bitrix_sessid()]);
+    return \CHTTP::urlAddParams('/', ['logout' => 'yes', 'sessid' => bitrix_sessid()]);
 }
 
+/**
+ * Генерация короткой ссылки
+ *
+ * @param string $url Ссылка, которую надо укоротить
+ * @param int $redirectStatus Статус, с которым произойдёт редирект
+ *
+ * @return string
+ */
+function getShortUrl(string $url, int $redirectStatus = 301) : string
+{
+    $shortUri = md5($url);
+    $request = \CBXShortUri::getList([], ['SHORT_URI' => $shortUri]);
+    if($request && $row = $request->fetch()) {
+        return $row['SHORT_URI'];
+    }
+
+    $id = \CBXShortUri::add([
+        'URI' => $url,
+        'SHORT_URI' => $shortUri,
+        'STATUS' => $redirectStatus,
+        'SHORT_URI_CRC' => \CBXShortUri::crc32($shortUri)
+    ]);
+
+    if($id) {
+        return $shortUri;
+    }
+
+    return '';
+}

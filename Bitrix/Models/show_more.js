@@ -66,17 +66,20 @@ class ItemsList
 
             const nextPageItems = nextPageWrapper.querySelectorAll(`.${itemClass}`);
             if(nextPageItems.length === 0) {
+                button.remove();
                 return;
             }
 
             // Подстановка элементов в конец контейнера
             nextPageItems.forEach(item => wrapper.appendChild(item));
 
-            // Перемещение кнопки
-            if(nextPage <= this.lastPage) {
-                button.dataset[pageAttributeName] = nextPage + 1;
-                button.classList.remove(this.hiddenClass);
+            if(nextPage + 1 > this.lastPage) {
+                button.remove();
+                return;
             }
+
+            button.dataset[pageAttributeName] = nextPage + 1;
+            button.classList.remove(this.hiddenClass);
         });
     }
 
