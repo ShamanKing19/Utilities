@@ -345,7 +345,41 @@ function replaceKeys(array &$array, array $replacementList) : void
 
     foreach($array as &$item) {
         if(is_array($item)) {
-            self::replaceKeys($item, $replacementList);
+            replaceKeys($item, $replacementList);
         }
     }
+}
+
+/**
+ * Поиск диапазонов дат
+ *
+ * @param array<string> $dateRangeList Массив дат
+ * @param int $daysDifference Количество дней, которое должно пройти, чтобы даты попали в 1 диапазон
+ *
+ * @return array
+ */
+function findDateRanges(array $dateRangeList, int $daysDifference = 1): array
+{
+    $previousDate = array_shift($dateRangeList);
+    $dateList = [$previousDate]; // Первый диапазон
+    $foundRangesList = []; // Массив с диапазонами
+    foreach ($dateRangeList as $currentDate) {
+
+        $currentDateObj = new \DateTime($currentDate);
+        $previousDateObj = new \DateTime($previousDate);
+        if ($previousDateObj->diff($currentDateObj)->days <= $daysDifference) {
+            $dateList[] = $currentDate;
+        } else {
+            $foundRangesList[] = $dateList;
+            $dateList = [$currentDate];
+        }
+
+        $previousDate = $currentDate;
+    }
+
+    if ($dateList) {
+        $foundRangesList[] = $dateList;
+    }
+
+    return $foundRangesList;
 }
